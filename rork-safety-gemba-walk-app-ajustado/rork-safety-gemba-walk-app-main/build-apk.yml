@@ -1,9 +1,7 @@
-name: Build Android APK
+name: Build APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main, master ]
 
 jobs:
   build:
@@ -13,32 +11,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK
+      - name: Configurar Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: 17
 
-      - name: Create Config.kt
+      - name: Build
         run: |
-          mkdir -p android/app/src/main/java/com/rork/safetygembawalk
-          cat > android/app/src/main/java/com/rork/safetygembawalk/Config.kt <<'KOTLIN'
-          package com.rork.safetygembawalk
-
-          object Config {
-              const val EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY = "${{ secrets.EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY }}"
-          }
-          KOTLIN
-
-      - name: Make Gradle executable
-        run: chmod +x android/gradlew
-
-      - name: Build debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug --stacktrace
+          cd rork-safety-gemba-walk-app-ajustado/rork-safety-gemba-walk-app-main/Android
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Safety-Gemba-Walk-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: app-debug
+          path: rork-safety-gemba-walk-app-ajustado/rork-safety-gemba-walk-app-main/Android/app/build/outputs/apk/debug/*.apk
