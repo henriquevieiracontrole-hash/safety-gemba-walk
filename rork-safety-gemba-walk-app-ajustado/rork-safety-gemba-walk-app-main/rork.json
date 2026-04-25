@@ -1,0 +1,10 @@
+{
+  "$schema": "https://rork.com/schema/rork.json",
+  "apps": [
+    {
+      "name": "Safety Gemba Walk",
+      "path": "android",
+      "framework": "kotlin"
+    }
+  ]
+}
