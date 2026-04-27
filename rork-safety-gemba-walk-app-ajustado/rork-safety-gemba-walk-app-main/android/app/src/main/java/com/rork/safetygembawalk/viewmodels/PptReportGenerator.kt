@@ -1,20 +1,15 @@
 package com.rork.safetygembawalk.viewmodels
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import com.rork.safetygembawalk.data.Inspection
+import com.rork.safetygembawalk.data.InspectionStatus
 import com.rork.safetygembawalk.data.formattedDate
+import com.rork.safetygembawalk.data.formattedWorkOrderOpenDate
 import org.apache.poi.sl.usermodel.PictureData
-import org.apache.poi.xslf.usermodel.SlideLayout
 import org.apache.poi.xslf.usermodel.XMLSlideShow
 import org.apache.poi.xslf.usermodel.XSLFSlide
-import org.apache.poi.xslf.usermodel.XSLFTextShape
-import org.apache.poi.xslf.usermodel.XSLFTextParagraph
-import org.apache.poi.xslf.usermodel.XSLFTextRun
-import org.apache.poi.sl.usermodel.ColorStyle
-import org.apache.poi.sl.usermodel.PaintStyle
-import java.io.ByteArrayOutputStream
+import java.awt.Color
+import java.awt.Rectangle
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -23,23 +18,25 @@ import java.util.Locale
 
 class PptReportGenerator(private val context: Context) {
 
+    private val navy = Color(9, 31, 65)
+    private val purple = Color(107, 35, 120)
+    private val orange = Color(255, 95, 35)
+    private val red = Color(220, 38, 38)
+    private val green = Color(34, 140, 80)
+    private val dark = Color(30, 41, 59)
+    private val lightBorder = Color(210, 210, 210)
+
     fun generateReport(inspections: List<Inspection>): String {
         val fileName = "Safety_Gemba_Walk_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())}.pptx"
         val file = File(context.getExternalFilesDir(null), fileName)
 
         XMLSlideShow().use { ppt ->
-            // Create title slide
-            createTitleSlide(ppt)
+            ppt.pageSize = java.awt.Dimension(1280, 720)
 
-            // Create summary slide
-            createSummarySlide(ppt, inspections)
-
-            // Create inspection slides
             inspections.forEachIndexed { index, inspection ->
                 createInspectionSlide(ppt, inspection, index + 1)
             }
 
-            // Save the presentation
             FileOutputStream(file).use { out ->
                 ppt.write(out)
             }
@@ -48,151 +45,194 @@ class PptReportGenerator(private val context: Context) {
         return file.absolutePath
     }
 
-    private fun createTitleSlide(ppt: XMLSlideShow) {
-        val layout = ppt.slideMasters[0].getLayout(SlideLayout.TITLE)
-        val slide = ppt.createSlide(layout)
-
-        val titleShape = slide.getPlaceholder(0) as XSLFTextShape
-        titleShape.clearText()
-        val titlePara = titleShape.addNewTextParagraph()
-        val titleRun = titlePara.addNewTextRun()
-        titleRun.setText("SAFETY GEMBA WALK")
-        titleRun.setFontSize(44.0)
-        titleRun.isBold = true
-
-        val subtitleShape = slide.getPlaceholder(1) as XSLFTextShape
-        subtitleShape.clearText()
-        val subPara = subtitleShape.addNewTextParagraph()
-        val subRun = subPara.addNewTextRun()
-        subRun.setText("Relatório de Inspeções de Segurança")
-        subRun.setFontSize(24.0)
-        
-        val subRun2 = subPara.addNewTextRun()
-        subRun2.setText("\nAhlstrom")
-        subRun2.setFontSize(28.0)
-        subRun2.isBold = true
-    }
-
-    private fun createSummarySlide(ppt: XMLSlideShow, inspections: List<Inspection>) {
-        val layout = ppt.slideMasters[0].getLayout(SlideLayout.TITLE_AND_CONTENT)
-        val slide = ppt.createSlide(layout)
-
-        val titleShape = slide.getPlaceholder(0) as XSLFTextShape
-        titleShape.clearText()
-        val titlePara = titleShape.addNewTextParagraph()
-        val titleRun = titlePara.addNewTextRun()
-        titleRun.setText("Resumo das Inspeções")
-        titleRun.setFontSize(32.0)
-        titleRun.isBold = true
-
-        val total = inspections.size
-        val immediate = inspections.count { it.isImmediateAction }
-        val withWorkOrder = inspections.count { it.hasWorkOrder }
-        val completed = inspections.count { it.status.name == "COMPLETED" }
-
-        val contentShape = slide.getPlaceholder(1) as XSLFTextShape
-        contentShape.clearText()
-
-        val p1 = contentShape.addNewTextParagraph()
-        val r1 = p1.addNewTextRun()
-        r1.setText("Total de Inspeções: $total")
-        r1.setFontSize(24.0)
-        r1.isBold = true
-
-        val p2 = contentShape.addNewTextParagraph()
-        val r2 = p2.addNewTextRun()
-        r2.setText("Ações Imediatas: $immediate")
-        r2.setFontSize(20.0)
-
-        val p3 = contentShape.addNewTextParagraph()
-        val r3 = p3.addNewTextRun()
-        r3.setText("Ordens de Serviço: $withWorkOrder")
-        r3.setFontSize(20.0)
-
-        val p4 = contentShape.addNewTextParagraph()
-        val r4 = p4.addNewTextRun()
-        r4.setText("Concluídas: $completed")
-        r4.setFontSize(20.0)
-
-        val p5 = contentShape.addNewTextParagraph()
-        val r5 = p5.addNewTextRun()
-        r5.setText("\nAhlstrom - Safety Gemba Walk")
-        r5.setFontSize(14.0)
-        r5.isBold = true
-        
-        val p6 = contentShape.addNewTextParagraph()
-        val r6 = p6.addNewTextRun()
-        r6.setText("Data: ${SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())}")
-        r6.setFontSize(12.0)
-    }
-
     private fun createInspectionSlide(ppt: XMLSlideShow, inspection: Inspection, number: Int) {
-        val layout = ppt.slideMasters[0].getLayout(SlideLayout.TITLE_AND_CONTENT)
-        val slide = ppt.createSlide(layout)
+        val slide = ppt.createSlide()
 
-        val titleShape = slide.getPlaceholder(0) as XSLFTextShape
-        titleShape.clearText()
-        val titlePara = titleShape.addNewTextParagraph()
-        val titleRun = titlePara.addNewTextRun()
-        titleRun.setText("Inspeção #$number - ${inspection.formattedDate()}")
-        titleRun.setFontSize(28.0)
-        titleRun.isBold = true
+        addBackground(ppt, slide)
 
-        val contentShape = slide.getPlaceholder(1) as XSLFTextShape
-        contentShape.clearText()
+        addText(slide, "SAFETY GEMBA WALK", 56, 56, 520, 42, 30.0, navy, true)
+        addText(slide, "Relatório de inspeção #$number", 58, 96, 420, 30, 17.0, purple, false)
+        addText(
+            slide,
+            "Data: ${SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())}",
+            1050,
+            96,
+            180,
+            24,
+            11.0,
+            dark,
+            false
+        )
 
-        val p1 = contentShape.addNewTextParagraph()
-        val r1 = p1.addNewTextRun()
-        r1.setText("Condição Insegura:")
-        r1.setFontSize(14.0)
-        r1.isBold = true
-        
-        val r1b = p1.addNewTextRun()
-        r1b.setText(" ${inspection.unsafeCondition}")
-        r1b.setFontSize(16.0)
-        r1b.isBold = true
+        addLine(slide, 58, 130, 1160, 3, purple)
 
-        val p2 = contentShape.addNewTextParagraph()
-        val r2 = p2.addNewTextRun()
-        r2.setText("Descrição: ${inspection.description}")
-        r2.setFontSize(14.0)
+        addInfoPanel(slide, inspection)
+        addRiskPanel(slide, inspection)
+        addActionPanel(slide, inspection)
+        addPhotoPanel(ppt, slide, inspection)
+    }
 
-        val p3 = contentShape.addNewTextParagraph()
-        val r3 = p3.addNewTextRun()
-        r3.setText("Ação Imediata: ${inspection.immediateAction}")
-        r3.setFontSize(14.0)
+    private fun addBackground(ppt: XMLSlideShow, slide: XSLFSlide) {
+        try {
+            val resId = context.resources.getIdentifier(
+                "report_ppt_background",
+                "drawable",
+                context.packageName
+            )
 
-        val p4 = contentShape.addNewTextParagraph()
-        val r4 = p4.addNewTextRun()
-        r4.setText("Local: ${inspection.location}")
-        r4.setFontSize(14.0)
-        
-        val p4b = contentShape.addNewTextParagraph()
-        val r4b = p4b.addNewTextRun()
-        r4b.setText("Inspetor: ${inspection.inspectorName}")
-        r4b.setFontSize(12.0)
+            if (resId == 0) return
+
+            val bytes = context.resources.openRawResource(resId).use { it.readBytes() }
+            val pic = ppt.addPicture(bytes, PictureData.PictureType.PNG)
+            val shape = slide.createPicture(pic)
+            shape.anchor = Rectangle(0, 0, 1280, 720)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun addInfoPanel(slide: XSLFSlide, inspection: Inspection) {
+        addText(slide, "INSPEÇÃO #", 70, 158, 165, 28, 12.0, Color.WHITE, true, purple)
+
+        val x = 70
+        var y = 205
+
+        addInfo(slide, x, y, "Data da inspeção", inspection.formattedDate())
+        y += 58
+
+        addInfo(slide, x, y, "Categoria", inspection.category.ifBlank { "Segurança" })
+        y += 58
+
+        addInfo(slide, x, y, "Local", inspection.location.ifBlank { "-" })
+        y += 58
+
+        addInfo(slide, x, y, "Inspetor", inspection.inspectorName.ifBlank { "-" })
+        y += 68
+
+        val status = when (inspection.status) {
+            InspectionStatus.COMPLETED -> "CONCLUÍDO"
+            InspectionStatus.IN_PROGRESS -> "EM ANDAMENTO"
+            InspectionStatus.PENDING -> "PENDENTE"
+            InspectionStatus.CANCELLED -> "CANCELADO"
+        }
+
+        val statusColor = when (inspection.status) {
+            InspectionStatus.COMPLETED -> green
+            InspectionStatus.IN_PROGRESS -> orange
+            InspectionStatus.PENDING -> red
+            InspectionStatus.CANCELLED -> dark
+        }
+
+        addBox(slide, x, y, 180, 34, Color.WHITE, statusColor)
+        addText(slide, status, x + 8, y + 7, 164, 20, 12.0, statusColor, true)
+        y += 54
 
         if (inspection.hasWorkOrder) {
-            val p5 = contentShape.addNewTextParagraph()
-            val r5 = p5.addNewTextRun()
-            r5.setText("O.S. Nº: ${inspection.workOrderNumber ?: "N/A"}")
-            r5.setFontSize(14.0)
-            r5.isBold = true
+            addInfo(slide, x, y, "Ordem de Serviço", inspection.workOrderNumber ?: "N/A")
+            y += 58
+            addInfo(slide, x, y, "Data abertura O.S.", inspection.formattedWorkOrderOpenDate())
         }
-        
-        if (inspection.isImmediateAction) {
-            val p6 = contentShape.addNewTextParagraph()
-            val r6 = p6.addNewTextRun()
-            r6.setText("✓ Ação Imediata Realizada")
-            r6.setFontSize(14.0)
-            r6.isBold = true
+    }
+
+    private fun addRiskPanel(slide: XSLFSlide, inspection: Inspection) {
+        addText(slide, "RISCO IDENTIFICADO", 315, 188, 230, 26, 14.0, red, true)
+
+        val riskText = "${inspection.unsafeCondition}\n\n${inspection.description}".trim()
+        addText(slide, riskText, 315, 225, 300, 150, 12.0, dark, false)
+
+        addLine(slide, 292, 180, 2, 395, lightBorder)
+    }
+
+    private fun addActionPanel(slide: XSLFSlide, inspection: Inspection) {
+        addText(slide, "AÇÃO IMEDIATA", 315, 405, 230, 26, 14.0, orange, true)
+
+        addText(
+            slide,
+            inspection.immediateAction.ifBlank { "-" },
+            315,
+            442,
+            300,
+            120,
+            12.0,
+            dark,
+            false
+        )
+    }
+
+    private fun addPhotoPanel(ppt: XMLSlideShow, slide: XSLFSlide, inspection: Inspection) {
+        addBox(slide, 650, 175, 555, 405, Color(255, 255, 255), lightBorder)
+
+        addText(slide, "FOTO ANTES", 720, 195, 170, 24, 13.0, purple, true)
+        addText(slide, "FOTO DEPOIS", 995, 195, 170, 24, 13.0, purple, true)
+
+        addPictureIfExists(ppt, slide, inspection.beforePhotoPath, 700, 230, 210, 310)
+        addPictureIfExists(ppt, slide, inspection.afterPhotoPath, 975, 230, 210, 310)
+    }
+
+    private fun addPictureIfExists(
+        ppt: XMLSlideShow,
+        slide: XSLFSlide,
+        path: String?,
+        x: Int,
+        y: Int,
+        w: Int,
+        h: Int
+    ) {
+        try {
+            if (path.isNullOrBlank()) return
+            val file = File(path)
+            if (!file.exists()) return
+
+            val bytes = file.readBytes()
+            val pic = ppt.addPicture(bytes, PictureData.PictureType.JPEG)
+            val shape = slide.createPicture(pic)
+            shape.anchor = Rectangle(x, y, w, h)
+        } catch (_: Exception) {
         }
-        
-        // Footer with Ahlstrom branding
-        val pFooter = contentShape.addNewTextParagraph()
-        pFooter.setLineSpacing(2.0)
-        val rFooter = pFooter.addNewTextRun()
-        rFooter.setText("\nAhlstrom - Safety Gemba Walk")
-        rFooter.setFontSize(10.0)
+    }
+
+    private fun addInfo(slide: XSLFSlide, x: Int, y: Int, label: String, value: String) {
+        addText(slide, label, x, y, 190, 18, 10.0, purple, true)
+        addText(slide, value, x, y + 18, 190, 26, 10.0, dark, false)
+    }
+
+    private fun addText(
+        slide: XSLFSlide,
+        text: String,
+        x: Int,
+        y: Int,
+        w: Int,
+        h: Int,
+        size: Double,
+        color: Color,
+        bold: Boolean,
+        fill: Color? = null
+    ) {
+        val shape = slide.createTextBox()
+        shape.anchor = Rectangle(x, y, w, h)
+        fill?.let {
+            shape.fillColor = it
+        }
+
+        val p = shape.addNewTextParagraph()
+        val r = p.addNewTextRun()
+        r.setText(text)
+        r.setFontSize(size)
+        r.setFontColor(color)
+        r.isBold = bold
+        r.setFontFamily("Arial")
+    }
+
+    private fun addBox(slide: XSLFSlide, x: Int, y: Int, w: Int, h: Int, fill: Color, border: Color) {
+        val box = slide.createAutoShape()
+        box.anchor = Rectangle(x, y, w, h)
+        box.fillColor = fill
+        box.lineColor = border
+    }
+
+    private fun addLine(slide: XSLFSlide, x: Int, y: Int, w: Int, h: Int, color: Color) {
+        val line = slide.createAutoShape()
+        line.anchor = Rectangle(x, y, w, h)
+        line.fillColor = color
+        line.lineColor = color
     }
 }
