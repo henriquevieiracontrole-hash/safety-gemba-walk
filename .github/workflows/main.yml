@@ -17,10 +17,18 @@ jobs:
 
       - name: Build APK
         run: |
-          echo "LISTANDO PASTAS"
-          find . -type d | head -50
+          echo "PROCURANDO GRADLEW"
+          GRADLEW_PATH=$(find . -name gradlew | head -n 1)
+          echo "GRADLEW ENCONTRADO EM: $GRADLEW_PATH"
 
-          cd "./rork-safety-gemba-walk-app-ajustado/rork-safety-gemba-walk-app-main/Android"
+          if [ -z "$GRADLEW_PATH" ]; then
+            echo "ERRO: gradlew não encontrado"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
+          cd "$PROJECT_DIR"
+
           chmod +x gradlew
           ./gradlew assembleDebug
 
@@ -28,4 +36,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: ./rork-safety-gemba-walk-app-ajustado/rork-safety-gemba-walk-app-main/Android/app/build/outputs/apk/debug/*.apk
+          path: "**/app/build/outputs/apk/debug/*.apk"
