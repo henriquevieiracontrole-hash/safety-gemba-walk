@@ -5,16 +5,13 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
 import com.rork.safetygembawalk.data.AiAnalysisResult
-import com.rork.safetygembawalk.data.AiAnalysisService
 import com.rork.safetygembawalk.data.Inspection
 import com.rork.safetygembawalk.data.InspectionRepository
 import com.rork.safetygembawalk.data.InspectionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
@@ -25,6 +22,8 @@ data class InspectionFormState(
     val immediateAction: String = "",
     val hasWorkOrder: Boolean = false,
     val workOrderNumber: String = "",
+    val workOrderOpenDate: Long? = null,
+    val category: String = "Segurança",
     val isImmediateAction: Boolean = false,
     val location: String = "",
     val inspectorName: String = "",
@@ -46,6 +45,8 @@ sealed interface InspectionAction {
     data class UpdateImmediateAction(val value: String) : InspectionAction
     data class UpdateHasWorkOrder(val value: Boolean) : InspectionAction
     data class UpdateWorkOrderNumber(val value: String) : InspectionAction
+    data class UpdateWorkOrderOpenDate(val value: Long?) : InspectionAction
+    data class UpdateCategory(val value: String) : InspectionAction
     data class UpdateIsImmediateAction(val value: Boolean) : InspectionAction
     data class UpdateLocation(val value: String) : InspectionAction
     data class UpdateInspectorName(val value: String) : InspectionAction
@@ -80,33 +81,42 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onAction(action: InspectionAction) {
         when (action) {
-            is InspectionAction.UpdateUnsafeCondition -> {
-                _formState.value = _formState.value.copy(unsafeCondition = action.value)
-            }
-            is InspectionAction.UpdateDescription -> {
-                _formState.value = _formState.value.copy(description = action.value)
-            }
-            is InspectionAction.UpdateImmediateAction -> {
-                _formState.value = _formState.value.copy(immediateAction = action.value)
-            }
-            is InspectionAction.UpdateHasWorkOrder -> {
-                _formState.value = _formState.value.copy(hasWorkOrder = action.value)
-            }
-            is InspectionAction.UpdateWorkOrderNumber -> {
-                _formState.value = _formState.value.copy(workOrderNumber = action.value)
-            }
-            is InspectionAction.UpdateIsImmediateAction -> {
-                _formState.value = _formState.value.copy(isImmediateAction = action.value)
-            }
-            is InspectionAction.UpdateLocation -> {
-                _formState.value = _formState.value.copy(location = action.value)
-            }
-            is InspectionAction.UpdateInspectorName -> {
-                _formState.value = _formState.value.copy(inspectorName = action.value)
-            }
-            is InspectionAction.UpdateStatus -> {
-                _formState.value = _formState.value.copy(status = action.value)
-            }
+            is InspectionAction.UpdateUnsafeCondition -> _formState.value =
+                _formState.value.copy(unsafeCondition = action.value)
+
+            is InspectionAction.UpdateDescription -> _formState.value =
+                _formState.value.copy(description = action.value)
+
+            is InspectionAction.UpdateImmediateAction -> _formState.value =
+                _formState.value.copy(immediateAction = action.value)
+
+            is InspectionAction.UpdateHasWorkOrder -> _formState.value =
+                _formState.value.copy(
+                    hasWorkOrder = action.value,
+                    workOrderOpenDate = if (action.value) System.currentTimeMillis() else null
+                )
+
+            is InspectionAction.UpdateWorkOrderNumber -> _formState.value =
+                _formState.value.copy(workOrderNumber = action.value)
+
+            is InspectionAction.UpdateWorkOrderOpenDate -> _formState.value =
+                _formState.value.copy(workOrderOpenDate = action.value)
+
+            is InspectionAction.UpdateCategory -> _formState.value =
+                _formState.value.copy(category = action.value)
+
+            is InspectionAction.UpdateIsImmediateAction -> _formState.value =
+                _formState.value.copy(isImmediateAction = action.value)
+
+            is InspectionAction.UpdateLocation -> _formState.value =
+                _formState.value.copy(location = action.value)
+
+            is InspectionAction.UpdateInspectorName -> _formState.value =
+                _formState.value.copy(inspectorName = action.value)
+
+            is InspectionAction.UpdateStatus -> _formState.value =
+                _formState.value.copy(status = action.value)
+
             is InspectionAction.SetBeforePhoto -> {
                 val path = saveImageToInternalStorage(action.uri, "before_")
                 _formState.value = _formState.value.copy(
@@ -114,6 +124,7 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
                     beforePhotoPath = path
                 )
             }
+
             is InspectionAction.SetAfterPhoto -> {
                 val path = saveImageToInternalStorage(action.uri, "after_")
                 _formState.value = _formState.value.copy(
@@ -121,11 +132,12 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
                     afterPhotoPath = path
                 )
             }
+
             is InspectionAction.SaveInspection -> saveInspection()
             is InspectionAction.LoadInspection -> loadInspection(action.id)
-            is InspectionAction.ClearError -> {
-                _formState.value = _formState.value.copy(errorMessage = null)
-            }
+            is InspectionAction.ClearError -> _formState.value =
+                _formState.value.copy(errorMessage = null)
+
             is InspectionAction.AnalyzeWithAi -> analyzeWithAi()
             is InspectionAction.ApplyAiAnalysis -> applyAiAnalysis(action.result)
         }
@@ -168,13 +180,19 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             immediateAction = state.immediateAction,
             hasWorkOrder = state.hasWorkOrder,
             workOrderNumber = state.workOrderNumber.takeIf { it.isNotBlank() },
+            workOrderOpenDate = state.workOrderOpenDate,
+            category = state.category,
             isImmediateAction = state.isImmediateAction,
             location = state.location,
             inspectorName = state.inspectorName,
             beforePhotoPath = state.beforePhotoPath,
             afterPhotoPath = state.afterPhotoPath,
             status = state.status,
-            createdAt = if (currentInspectionId == 0L) System.currentTimeMillis() else repository.getInspectionById(currentInspectionId)?.createdAt ?: System.currentTimeMillis()
+            createdAt = if (currentInspectionId == 0L)
+                System.currentTimeMillis()
+            else
+                repository.getInspectionById(currentInspectionId)?.createdAt
+                    ?: System.currentTimeMillis()
         )
 
         repository.insertInspection(inspection)
@@ -193,6 +211,8 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
                 immediateAction = inspection.immediateAction,
                 hasWorkOrder = inspection.hasWorkOrder,
                 workOrderNumber = inspection.workOrderNumber ?: "",
+                workOrderOpenDate = inspection.workOrderOpenDate,
+                category = inspection.category,
                 isImmediateAction = inspection.isImmediateAction,
                 location = inspection.location,
                 inspectorName = inspection.inspectorName,
