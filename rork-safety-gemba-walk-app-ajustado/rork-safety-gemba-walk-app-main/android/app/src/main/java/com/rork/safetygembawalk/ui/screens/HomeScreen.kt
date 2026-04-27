@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,19 +17,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Slideshow
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -69,11 +69,12 @@ import coil3.compose.AsyncImage
 import com.rork.safetygembawalk.data.Inspection
 import com.rork.safetygembawalk.data.InspectionStatus
 import com.rork.safetygembawalk.data.formattedDate
+import com.rork.safetygembawalk.data.formattedWorkOrderOpenDate
 import com.rork.safetygembawalk.ui.navigation.provideHomeViewModelFactory
-import com.rork.safetygembawalk.viewmodels.HomeAction
-import com.rork.safetygembawalk.viewmodels.HomeViewModel
 import com.rork.safetygembawalk.viewmodels.AuthAction
 import com.rork.safetygembawalk.viewmodels.AuthViewModel
+import com.rork.safetygembawalk.viewmodels.HomeAction
+import com.rork.safetygembawalk.viewmodels.HomeViewModel
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,12 +90,12 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val authState by authViewModel.authState.collectAsState()
+
     var showFilterMenu by remember { mutableStateOf(false) }
     var showUserMenu by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var inspectionToDelete by remember { mutableStateOf<Inspection?>(null) }
-    
-    // Check authentication
+
     LaunchedEffect(authState.isAuthenticated) {
         if (!authState.isAuthenticated) {
             navController.navigate("login") {
@@ -114,9 +115,9 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            "Ahlstrom",
+                            "Gestão de inspeções",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
                         )
                     }
                 },
@@ -132,6 +133,7 @@ fun HomeScreen(
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
+
                     DropdownMenu(
                         expanded = showFilterMenu,
                         onDismissRequest = { showFilterMenu = false }
@@ -143,6 +145,7 @@ fun HomeScreen(
                                 showFilterMenu = false
                             }
                         )
+
                         InspectionStatus.entries.forEach { status ->
                             DropdownMenuItem(
                                 text = { Text(getStatusLabel(status)) },
@@ -153,8 +156,7 @@ fun HomeScreen(
                             )
                         }
                     }
-                    
-                    // User menu
+
                     IconButton(onClick = { showUserMenu = true }) {
                         Icon(
                             imageVector = Icons.Default.AccountCircle,
@@ -162,13 +164,14 @@ fun HomeScreen(
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
+
                     DropdownMenu(
                         expanded = showUserMenu,
                         onDismissRequest = { showUserMenu = false }
                     ) {
                         authState.user?.let { user ->
                             DropdownMenuItem(
-                                text = { 
+                                text = {
                                     Column {
                                         Text(user.fullName, fontWeight = FontWeight.SemiBold)
                                         Text(user.area, style = MaterialTheme.typography.bodySmall)
@@ -177,6 +180,7 @@ fun HomeScreen(
                                 onClick = { }
                             )
                         }
+
                         DropdownMenuItem(
                             text = { Text("Sair") },
                             leadingIcon = {
@@ -213,7 +217,6 @@ fun HomeScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            // Summary Cards
             SummaryCards(
                 totalCount = uiState.totalCount,
                 pendingCount = uiState.pendingCount,
@@ -221,7 +224,6 @@ fun HomeScreen(
                 modifier = Modifier.padding(16.dp)
             )
 
-            // Search Bar
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = {
@@ -244,7 +246,6 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Quick Actions
             QuickActions(
                 onPdfClick = { navController.navigate("reports/pdf") },
                 onPptClick = { navController.navigate("reports/ppt") },
@@ -253,7 +254,6 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Inspections List
             if (uiState.inspections.isEmpty()) {
                 EmptyState(
                     modifier = Modifier.fillMaxSize(),
@@ -263,16 +263,20 @@ fun HomeScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)
+                    contentPadding = PaddingValues(16.dp)
                 ) {
                     items(
-                        items = uiState.inspections,
+                        items = uiState.inspections.sortedByDescending { it.createdAt },
                         key = { it.id }
                     ) { inspection ->
                         InspectionCard(
                             inspection = inspection,
-                            onClick = { navController.navigate("inspection_detail/${inspection.id}") },
-                            onDelete = { inspectionToDelete = inspection }
+                            onClick = {
+                                navController.navigate("inspection_detail/${inspection.id}")
+                            },
+                            onDelete = {
+                                inspectionToDelete = inspection
+                            }
                         )
                     }
                 }
@@ -280,7 +284,6 @@ fun HomeScreen(
         }
     }
 
-    // Delete Confirmation Dialog
     inspectionToDelete?.let { inspection ->
         AlertDialog(
             onDismissRequest = { inspectionToDelete = null },
@@ -361,6 +364,7 @@ private fun SummaryCard(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimary
             )
+
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodySmall,
@@ -386,6 +390,7 @@ private fun QuickActions(
             onClick = onPdfClick,
             modifier = Modifier.weight(1f)
         )
+
         ActionButton(
             icon = Icons.Default.Slideshow,
             label = "PPT",
@@ -422,7 +427,9 @@ private fun ActionButton(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary
             )
+
             Spacer(modifier = Modifier.width(8.dp))
+
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
@@ -447,14 +454,13 @@ private fun InspectionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Photo thumbnail
             Box(
                 modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .size(88.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 inspection.beforePhotoPath?.let { path ->
@@ -466,56 +472,53 @@ private fun InspectionCard(
                             contentScale = ContentScale.Crop
                         )
                     } else {
-                        Icon(
-                            imageVector = Icons.Default.Description,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .align(Alignment.Center),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        EmptyPhotoIcon()
                     }
-                } ?: run {
-                    Icon(
-                        imageVector = Icons.Default.Description,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .align(Alignment.Center),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                } ?: EmptyPhotoIcon()
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Content
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
-                    text = inspection.unsafeCondition,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = inspection.unsafeCondition.ifBlank { "Sem título" },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
-                Text(
-                    text = inspection.description.take(100) + if (inspection.description.length > 100) "..." else "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                        Text(
+                            text = inspection.description.ifBlank { "Sem descrição" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Excluir",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.LocationOn,
@@ -523,104 +526,164 @@ private fun InspectionCard(
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
                     Text(
                         text = inspection.location.takeIf { it.isNotBlank() } ?: "Sem local",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
                     Text(
                         text = inspection.inspectorName.takeIf { it.isNotBlank() } ?: "Sem inspetor",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StatusChip(status = inspection.status)
+                    CategoryChip(category = inspection.category)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Inspeção: ${inspection.formattedDate()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (inspection.hasWorkOrder) {
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = "OS: ${inspection.workOrderNumber?.takeIf { it.isNotBlank() } ?: "N/A"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Text(
+                        text = "Abertura OS: ${inspection.formattedWorkOrderOpenDate()}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                if (inspection.immediateAction.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    StatusChip(status = inspection.status)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp)
+                        ) {
+                            Text(
+                                text = "Ação imediata:",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
 
-                    if (inspection.hasWorkOrder) {
-                        WorkOrderChip(number = inspection.workOrderNumber)
-                    }
+                            Spacer(modifier = Modifier.height(4.dp))
 
-                    if (inspection.isImmediateAction) {
-                        ImmediateActionChip()
+                            Text(
+                                text = inspection.immediateAction,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                maxLines = 4,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
-            }
-
-            // Delete button
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Excluir",
-                    tint = MaterialTheme.colorScheme.error
-                )
             }
         }
     }
 }
 
 @Composable
+private fun Box.EmptyPhotoIcon() {
+    Icon(
+        imageVector = Icons.Default.Description,
+        contentDescription = null,
+        modifier = Modifier
+            .size(32.dp)
+            .align(Alignment.Center),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
 private fun StatusChip(status: InspectionStatus) {
     val (backgroundColor, textColor) = when (status) {
-        InspectionStatus.PENDING -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.error
-        InspectionStatus.IN_PROGRESS -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.secondary
-        InspectionStatus.COMPLETED -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
-        InspectionStatus.CANCELLED -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+        InspectionStatus.PENDING ->
+            MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.error
+
+        InspectionStatus.IN_PROGRESS ->
+            MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.secondary
+
+        InspectionStatus.COMPLETED ->
+            MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
+
+        InspectionStatus.CANCELLED ->
+            MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Surface(
-        shape = RoundedCornerShape(4.dp),
+        shape = RoundedCornerShape(6.dp),
         color = backgroundColor
     ) {
         Text(
             text = getStatusLabel(status),
             style = MaterialTheme.typography.labelSmall,
             color = textColor,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
     }
 }
 
 @Composable
-private fun WorkOrderChip(number: String?) {
+private fun CategoryChip(category: String) {
     Surface(
-        shape = RoundedCornerShape(4.dp),
+        shape = RoundedCornerShape(6.dp),
         color = MaterialTheme.colorScheme.tertiaryContainer
     ) {
         Text(
-            text = "OS: ${number ?: "N/A"}",
+            text = category.ifBlank { "Segurança" },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-    }
-}
-
-@Composable
-private fun ImmediateActionChip() {
-    Surface(
-        shape = RoundedCornerShape(4.dp),
-        color = MaterialTheme.colorScheme.primaryContainer
-    ) {
-        Text(
-            text = "Ação Imediata",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
     }
@@ -670,7 +733,9 @@ private fun EmptyState(
                 contentDescription = null,
                 modifier = Modifier.size(18.dp)
             )
+
             Spacer(modifier = Modifier.width(8.dp))
+
             Text("Nova Inspeção")
         }
     }
@@ -679,7 +744,7 @@ private fun EmptyState(
 private fun getStatusLabel(status: InspectionStatus): String {
     return when (status) {
         InspectionStatus.PENDING -> "Pendente"
-        InspectionStatus.IN_PROGRESS -> "Em Andamento"
+        InspectionStatus.IN_PROGRESS -> "Em andamento"
         InspectionStatus.COMPLETED -> "Concluída"
         InspectionStatus.CANCELLED -> "Cancelada"
     }
