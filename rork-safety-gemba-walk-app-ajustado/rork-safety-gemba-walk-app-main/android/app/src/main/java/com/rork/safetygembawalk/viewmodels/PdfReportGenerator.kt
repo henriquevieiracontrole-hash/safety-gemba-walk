@@ -63,30 +63,34 @@ class PdfReportGenerator(private val context: Context) {
     }
 
     private fun addBackground(document: Document) {
-        try {
-            val resId = context.resources.getIdentifier(
-                "report_pdf_background",
-                "drawable",
-                context.packageName
-            )
+    try {
+        val resId = context.resources.getIdentifier(
+            "report_pdf_background",
+            "drawable",
+            context.packageName
+        )
 
-            if (resId == 0) return
+        if (resId == 0) return
 
-            val inputStream = context.resources.openRawResource(resId)
-            val bytes = inputStream.readBytes()
-            inputStream.close()
+        val bytes = context.resources.openRawResource(resId).use { it.readBytes() }
 
-            val page = document.pdfDocument.lastPage ?: document.pdfDocument.addNewPage(PageSize.A4)
-            val pageSize = page.pageSize
-
-            val bg = Image(ImageDataFactory.create(bytes))
-                .scaleAbsolute(pageSize.width, pageSize.height)
-                .setFixedPosition(document.pdfDocument.numberOfPages, 0f, 0f)
-
-            document.add(bg)
-        } catch (_: Exception) {
+        val pdfDoc = document.pdfDocument
+        if (pdfDoc.numberOfPages == 0) {
+            pdfDoc.addNewPage(PageSize.A4)
         }
+
+        val pageNumber = pdfDoc.numberOfPages
+        val pageSize = pdfDoc.getPage(pageNumber).pageSize
+
+        val bg = Image(ImageDataFactory.create(bytes))
+            .scaleAbsolute(pageSize.width, pageSize.height)
+            .setFixedPosition(pageNumber, 0f, 0f)
+
+        document.add(bg)
+
+    } catch (_: Exception) {
     }
+}
 
     private fun addReportPage(document: Document, inspection: Inspection, number: Int) {
         addTitle(document, number, inspection)
