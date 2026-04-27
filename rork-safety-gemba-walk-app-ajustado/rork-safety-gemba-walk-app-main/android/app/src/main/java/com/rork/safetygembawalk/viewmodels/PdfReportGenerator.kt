@@ -20,6 +20,7 @@ import com.itextpdf.layout.properties.UnitValue
 import com.rork.safetygembawalk.data.Inspection
 import com.rork.safetygembawalk.data.InspectionStatus
 import com.rork.safetygembawalk.data.formattedDate
+import com.rork.safetygembawalk.data.formattedWorkOrderOpenDate
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -145,6 +146,7 @@ class PdfReportGenerator(private val context: Context) {
             .setBorderRight(SolidBorder(lightPurple, 1f))
 
         addInfo(left, "Data da inspeção", inspection.formattedDate())
+        addInfo(left, "Categoria", inspection.category)
         addInfo(left, "Local", inspection.location)
         addInfo(left, "Inspetor", inspection.inspectorName)
 
@@ -176,6 +178,7 @@ class PdfReportGenerator(private val context: Context) {
 
         if (inspection.hasWorkOrder) {
             addInfo(left, "Ordem de Serviço", inspection.workOrderNumber ?: "N/A")
+            addInfo(left, "Data abertura O.S.", inspection.formattedWorkOrderOpenDate())
         }
 
         val right = Cell()
@@ -301,8 +304,16 @@ class PdfReportGenerator(private val context: Context) {
             }
 
             val image = Image(ImageDataFactory.create(imagePath))
-            image.setAutoScale(true)
-            image.setMaxHeight(210f)
+
+            val width = image.imageWidth
+            val height = image.imageHeight
+
+            if (height > width) {
+                image.scaleToFit(220f, 300f)
+            } else {
+                image.scaleToFit(260f, 200f)
+            }
+
             cell.add(image)
 
         } catch (e: Exception) {
