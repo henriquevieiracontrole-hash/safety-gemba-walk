@@ -23,7 +23,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
@@ -80,6 +79,9 @@ import com.rork.safetygembawalk.ui.navigation.provideInspectionViewModelFactory
 import com.rork.safetygembawalk.viewmodels.InspectionAction
 import com.rork.safetygembawalk.viewmodels.InspectionViewModel
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -93,11 +95,36 @@ fun NewInspectionScreen(
 ) {
     val formState by viewModel.formState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+
     var showCamera by remember { mutableStateOf(false) }
     var isAfterPhoto by remember { mutableStateOf(false) }
     var areaExpanded by remember { mutableStateOf(false) }
+    var categoryExpanded by remember { mutableStateOf(false) }
+
+    var showPhotoChoiceDialog by remember { mutableStateOf(false) }
+    var selectedPhotoIsAfter by remember { mutableStateOf(false) }
+
+    var workOrderDateText by remember { mutableStateOf("") }
 
     val cameraPermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
+
+    val categories = listOf(
+        "Segurança",
+        "Qualidade",
+        "Meio Ambiente",
+        "Operação",
+        "Manutenção",
+        "Logística",
+        "Outro"
+    )
+
+    LaunchedEffect(formState.workOrderOpenDate, formState.hasWorkOrder) {
+        workOrderDateText = if (formState.hasWorkOrder) {
+            formatDateOnly(formState.workOrderOpenDate)
+        } else {
+            ""
+        }
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -139,6 +166,53 @@ fun NewInspectionScreen(
             onDismiss = { showCamera = false }
         )
         return
+    }
+
+    if (showPhotoChoiceDialog) {
+        AlertDialog(
+            onDismissRequest = { showPhotoChoiceDialog = false },
+            title = { Text("Selecionar foto") },
+            text = { Text("Deseja tirar uma foto com a câmera ou escolher da galeria?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isAfterPhoto = selectedPhotoIsAfter
+                        showPhotoChoiceDialog = false
+
+                        if (cameraPermissionState.status.isGranted) {
+                            showCamera = true
+                        } else {
+                            cameraPermissionState.launchPermissionRequest()
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Câmera")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        isAfterPhoto = selectedPhotoIsAfter
+                        showPhotoChoiceDialog = false
+                        galleryLauncher.launch("image/*")
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PhotoLibrary,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Galeria")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -192,7 +266,9 @@ fun NewInspectionScreen(
                         modifier = Modifier.size(32.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
+
                     Spacer(modifier = Modifier.width(12.dp))
+
                     Column {
                         Text(
                             text = "Registro de Condição Insegura",
@@ -254,6 +330,43 @@ fun NewInspectionScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            ExposedDropdownMenuBox(
+                expanded = categoryExpanded,
+                onExpandedChange = { categoryExpanded = it },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = formState.category,
+                    onValueChange = {},
+                    label = { Text("Categoria *") },
+                    readOnly = true,
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    singleLine = true
+                )
+
+                ExposedDropdownMenu(
+                    expanded = categoryExpanded,
+                    onDismissRequest = { categoryExpanded = false }
+                ) {
+                    categories.forEach { category ->
+                        DropdownMenuItem(
+                            text = { Text(category) },
+                            onClick = {
+                                viewModel.onAction(InspectionAction.UpdateCategory(category))
+                                categoryExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             OutlinedTextField(
                 value = formState.inspectorName,
                 onValueChange = { viewModel.onAction(InspectionAction.UpdateInspectorName(it)) },
@@ -266,6 +379,7 @@ fun NewInspectionScreen(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                readOnly = true,
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Words,
                     imeAction = ImeAction.Next
@@ -347,6 +461,7 @@ fun NewInspectionScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+
                         Switch(
                             checked = formState.hasWorkOrder,
                             onCheckedChange = {
@@ -357,12 +472,42 @@ fun NewInspectionScreen(
 
                     if (formState.hasWorkOrder) {
                         Spacer(modifier = Modifier.height(12.dp))
+
                         OutlinedTextField(
                             value = formState.workOrderNumber,
                             onValueChange = {
                                 viewModel.onAction(InspectionAction.UpdateWorkOrderNumber(it))
                             },
                             label = { Text("Número da O.S. *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = workOrderDateText,
+                            onValueChange = { value ->
+                                workOrderDateText = value
+
+                                if (value.length >= 10) {
+                                    val parsed = parseDateOnly(value)
+                                    if (parsed != null) {
+                                        viewModel.onAction(
+                                            InspectionAction.UpdateWorkOrderOpenDate(parsed)
+                                        )
+                                    }
+                                }
+
+                                if (value.isBlank()) {
+                                    viewModel.onAction(
+                                        InspectionAction.UpdateWorkOrderOpenDate(null)
+                                    )
+                                }
+                            },
+                            label = { Text("Data abertura O.S. *") },
+                            placeholder = { Text("dd/MM/aaaa") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
@@ -398,6 +543,7 @@ fun NewInspectionScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
                     Switch(
                         checked = formState.isImmediateAction,
                         onCheckedChange = {
@@ -477,10 +623,6 @@ fun NewInspectionScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Botão de IA removido para manter o app estável
-
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
@@ -499,6 +641,10 @@ fun NewInspectionScreen(
                     title = "Foto - Antes *",
                     photoPath = formState.beforePhotoPath,
                     photoUri = formState.beforePhotoUri,
+                    onPhotoClick = {
+                        selectedPhotoIsAfter = false
+                        showPhotoChoiceDialog = true
+                    },
                     onCameraClick = {
                         isAfterPhoto = false
                         if (cameraPermissionState.status.isGranted) {
@@ -519,6 +665,10 @@ fun NewInspectionScreen(
                     subtitle = if (formState.isImmediateAction) "Obrigatória" else "Opcional",
                     photoPath = formState.afterPhotoPath,
                     photoUri = formState.afterPhotoUri,
+                    onPhotoClick = {
+                        selectedPhotoIsAfter = true
+                        showPhotoChoiceDialog = true
+                    },
                     onCameraClick = {
                         isAfterPhoto = true
                         if (cameraPermissionState.status.isGranted) {
@@ -569,6 +719,7 @@ private fun PhotoCard(
     subtitle: String = "",
     photoPath: String?,
     photoUri: Uri?,
+    onPhotoClick: () -> Unit,
     onCameraClick: () -> Unit,
     onGalleryClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -594,11 +745,15 @@ private fun PhotoCard(
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold
             )
+
             if (subtitle.isNotEmpty()) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (isRequired) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isRequired)
+                        MaterialTheme.colorScheme.error
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -609,6 +764,7 @@ private fun PhotoCard(
                     modifier = Modifier
                         .size(120.dp)
                         .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onPhotoClick)
                 ) {
                     AsyncImage(
                         model = File(photoPath),
@@ -635,6 +791,7 @@ private fun PhotoCard(
                                 modifier = Modifier.size(18.dp)
                             )
                         }
+
                         IconButton(
                             onClick = onGalleryClick,
                             modifier = Modifier.size(32.dp)
@@ -662,12 +819,12 @@ private fun PhotoCard(
                                 color = MaterialTheme.colorScheme.outline,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .clickable(onClick = onCameraClick),
+                            .clickable(onClick = onPhotoClick),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.CameraAlt,
-                            contentDescription = "Tirar foto",
+                            contentDescription = "Selecionar foto",
                             modifier = Modifier.size(32.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -685,5 +842,20 @@ private fun PhotoCard(
                 }
             }
         }
+    }
+}
+
+private fun formatDateOnly(value: Long?): String {
+    if (value == null) return ""
+    return SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(value))
+}
+
+private fun parseDateOnly(value: String): Long? {
+    return try {
+        val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        formatter.isLenient = false
+        formatter.parse(value)?.time
+    } catch (e: Exception) {
+        null
     }
 }
