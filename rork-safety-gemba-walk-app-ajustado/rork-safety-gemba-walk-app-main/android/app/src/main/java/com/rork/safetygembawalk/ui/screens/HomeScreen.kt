@@ -632,13 +632,11 @@ private fun InspectionCard(
 }
 
 @Composable
-private fun Box.EmptyPhotoIcon() {
+private fun EmptyPhotoIcon() {
     Icon(
         imageVector = Icons.Default.Description,
         contentDescription = null,
-        modifier = Modifier
-            .size(32.dp)
-            .align(Alignment.Center),
+        modifier = Modifier.size(32.dp),
         tint = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
