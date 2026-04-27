@@ -21,6 +21,7 @@ import com.rork.safetygembawalk.data.Inspection
 import com.rork.safetygembawalk.data.InspectionStatus
 import com.rork.safetygembawalk.data.formattedDate
 import com.rork.safetygembawalk.data.formattedWorkOrderOpenDate
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -34,7 +35,8 @@ class PdfReportGenerator(private val context: Context) {
     private val red = DeviceRgb(220, 38, 38)
     private val green = DeviceRgb(34, 197, 94)
     private val yellow = DeviceRgb(234, 179, 8)
-    private val lightPurple = DeviceRgb(235, 220, 240)
+    private val gray = DeviceRgb(245, 245, 245)
+    private val borderGray = DeviceRgb(210, 210, 210)
     private val dark = DeviceRgb(30, 41, 59)
     private val white = DeviceRgb(255, 255, 255)
 
@@ -45,13 +47,13 @@ class PdfReportGenerator(private val context: Context) {
         PdfWriter(file.absolutePath).use { writer ->
             PdfDocument(writer).use { pdfDoc ->
                 Document(pdfDoc, PageSize.A4).use { document ->
-                    document.setMargins(36f, 36f, 32f, 36f)
+                    document.setMargins(28f, 34f, 28f, 34f)
 
                     inspections.forEachIndexed { index, inspection ->
                         if (index > 0) document.add(AreaBreak())
 
-                        addHeader(document)
-                        addInspection(document, inspection, index + 1)
+                        addBackground(document)
+                        addReportPage(document, inspection, index + 1)
                     }
                 }
             }
@@ -60,95 +62,60 @@ class PdfReportGenerator(private val context: Context) {
         return file.absolutePath
     }
 
-    private fun addHeader(document: Document) {
-        val bold = PdfFontFactory.createFont("Helvetica-Bold")
-        val regular = PdfFontFactory.createFont("Helvetica")
+    private fun addBackground(document: Document) {
+        try {
+            val resId = context.resources.getIdentifier(
+                "report_pdf_background",
+                "drawable",
+                context.packageName
+            )
 
-        val table = Table(floatArrayOf(1.1f, 4f)).useAllAvailableWidth()
+            if (resId == 0) return
 
-        val logo = Cell()
-            .setBorder(Border.NO_BORDER)
-            .setPadding(10f)
+            val inputStream = context.resources.openRawResource(resId)
+            val bytes = inputStream.readBytes()
+            inputStream.close()
 
-        val title = Cell()
-            .setBorder(Border.NO_BORDER)
-            .setPaddingTop(14f)
-            .setPaddingLeft(6f)
+            val page = document.pdfDocument.lastPage ?: document.pdfDocument.addNewPage(PageSize.A4)
+            val pageSize = page.pageSize
 
-        title.add(
-            Paragraph("SAFETY GEMBA WALK")
-                .setFont(bold)
-                .setFontSize(30f)
-                .setFontColor(navy)
-        )
+            val bg = Image(ImageDataFactory.create(bytes))
+                .scaleAbsolute(pageSize.width, pageSize.height)
+                .setFixedPosition(document.pdfDocument.numberOfPages, 0f, 0f)
 
-        title.add(
-            Paragraph("Safety is my first job!!!")
-                .setFont(regular)
-                .setFontSize(17f)
-                .setFontColor(purple)
-                .setMarginTop(2f)
-        )
-
-        table.addCell(logo)
-        table.addCell(title)
-        document.add(table)
-
-        document.add(
-            Paragraph("")
-                .setBorderBottom(SolidBorder(purple, 2f))
-                .setMarginTop(8f)
-                .setMarginBottom(14f)
-        )
-
-        document.add(
-            Paragraph("Data: ${SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())}")
-                .setFont(bold)
-                .setFontSize(11f)
-                .setFontColor(dark)
-                .setTextAlignment(TextAlignment.RIGHT)
-                .setMarginBottom(18f)
-        )
+            document.add(bg)
+        } catch (_: Exception) {
+        }
     }
 
-    private fun addInspection(document: Document, inspection: Inspection, number: Int) {
+    private fun addReportPage(document: Document, inspection: Inspection, number: Int) {
+        addTitle(document, number, inspection)
+        addInfoBlock(document, inspection)
+        addRiskAndAction(document, inspection)
+        addPhotos(document, inspection)
+    }
+
+    private fun addTitle(document: Document, number: Int, inspection: Inspection) {
         val bold = PdfFontFactory.createFont("Helvetica-Bold")
         val regular = PdfFontFactory.createFont("Helvetica")
 
-        val main = Table(floatArrayOf(1f)).useAllAvailableWidth()
-        main.setBorder(SolidBorder(lightPurple, 1f))
-
-        val titleCell = Cell()
-            .setBorder(Border.NO_BORDER)
-            .setPadding(0f)
-
-        titleCell.add(
-            Paragraph("  INSPEÇÃO #$number")
+        document.add(
+            Paragraph("SAFETY GEMBA WALK")
                 .setFont(bold)
-                .setFontSize(15f)
-                .setFontColor(white)
-                .setBackgroundColor(purple)
-                .setPadding(10f)
-                .setWidth(UnitValue.createPercentValue(35f))
+                .setFontSize(26f)
+                .setFontColor(navy)
+                .setTextAlignment(TextAlignment.LEFT)
+                .setMarginTop(4f)
+                .setMarginBottom(0f)
         )
 
-        main.addCell(titleCell)
-
-        val body = Cell()
-            .setBorder(Border.NO_BORDER)
-            .setPadding(16f)
-
-        val details = Table(floatArrayOf(1.1f, 2f)).useAllAvailableWidth()
-
-        val left = Cell()
-            .setBorder(Border.NO_BORDER)
-            .setPaddingRight(14f)
-            .setBorderRight(SolidBorder(lightPurple, 1f))
-
-        addInfo(left, "Data da inspeção", inspection.formattedDate())
-        addInfo(left, "Categoria", inspection.category)
-        addInfo(left, "Local", inspection.location)
-        addInfo(left, "Inspetor", inspection.inspectorName)
+        document.add(
+            Paragraph("Relatório de inspeção #$number")
+                .setFont(regular)
+                .setFontSize(12f)
+                .setFontColor(purple)
+                .setMarginBottom(10f)
+        )
 
         val statusText = when (inspection.status) {
             InspectionStatus.COMPLETED -> "CONCLUÍDO"
@@ -164,133 +131,183 @@ class PdfReportGenerator(private val context: Context) {
             InspectionStatus.CANCELLED -> dark
         }
 
-        left.add(
-            Paragraph(statusText)
-                .setFont(bold)
-                .setFontSize(18f)
-                .setFontColor(statusColor)
-                .setTextAlignment(TextAlignment.CENTER)
-                .setBorder(SolidBorder(statusColor, 2f))
-                .setPadding(8f)
-                .setMarginTop(8f)
-                .setMarginBottom(14f)
+        val statusTable = Table(floatArrayOf(2.5f, 1f)).useAllAvailableWidth()
+
+        statusTable.addCell(
+            Cell()
+                .setBorder(Border.NO_BORDER)
+                .add(
+                    Paragraph(inspection.unsafeCondition.ifBlank { "Condição insegura registrada" })
+                        .setFont(bold)
+                        .setFontSize(15f)
+                        .setFontColor(dark)
+                )
         )
+
+        statusTable.addCell(
+            Cell()
+                .setBorder(SolidBorder(statusColor, 2f))
+                .setPadding(6f)
+                .add(
+                    Paragraph(statusText)
+                        .setFont(bold)
+                        .setFontSize(12f)
+                        .setFontColor(statusColor)
+                        .setTextAlignment(TextAlignment.CENTER)
+                )
+        )
+
+        document.add(statusTable)
+        document.add(Paragraph("").setMarginBottom(4f))
+    }
+
+    private fun addInfoBlock(document: Document, inspection: Inspection) {
+        val table = Table(floatArrayOf(1f, 1f, 1f)).useAllAvailableWidth()
+        table.setMarginBottom(10f)
+
+        addInfoCell(table, "Data da inspeção", inspection.formattedDate())
+        addInfoCell(table, "Categoria", inspection.category.ifBlank { "Segurança" })
+        addInfoCell(table, "Local", inspection.location.ifBlank { "-" })
+
+        addInfoCell(table, "Inspetor", inspection.inspectorName.ifBlank { "-" })
 
         if (inspection.hasWorkOrder) {
-            addInfo(left, "Ordem de Serviço", inspection.workOrderNumber ?: "N/A")
-            addInfo(left, "Data abertura O.S.", inspection.formattedWorkOrderOpenDate())
+            addInfoCell(table, "Ordem de Serviço", inspection.workOrderNumber ?: "N/A")
+            addInfoCell(table, "Abertura O.S.", inspection.formattedWorkOrderOpenDate())
+        } else {
+            addInfoCell(table, "Ordem de Serviço", "Não aplicável")
+            addInfoCell(table, "Abertura O.S.", "Não aplicável")
         }
 
-        val right = Cell()
-            .setBorder(Border.NO_BORDER)
-            .setPaddingLeft(18f)
+        document.add(table)
+    }
 
-        right.add(
-            Paragraph("RISCO IDENTIFICADO")
+    private fun addInfoCell(table: Table, label: String, value: String) {
+        val bold = PdfFontFactory.createFont("Helvetica-Bold")
+        val regular = PdfFontFactory.createFont("Helvetica")
+
+        val cell = Cell()
+            .setBackgroundColor(gray)
+            .setBorder(SolidBorder(borderGray, 0.7f))
+            .setPadding(7f)
+
+        cell.add(
+            Paragraph(label)
                 .setFont(bold)
-                .setFontSize(15f)
-                .setFontColor(red)
+                .setFontSize(8f)
+                .setFontColor(purple)
+                .setMarginBottom(2f)
         )
 
-        right.add(
-            Paragraph(valueOrDash("${inspection.unsafeCondition} ${inspection.description}".trim()))
+        cell.add(
+            Paragraph(value)
                 .setFont(regular)
-                .setFontSize(11f)
+                .setFontSize(9f)
                 .setFontColor(dark)
-                .setMarginBottom(12f)
         )
 
-        right.add(
-            Paragraph("")
-                .setBorderBottom(SolidBorder(lightPurple, 1f))
-                .setMarginBottom(10f)
+        table.addCell(cell)
+    }
+
+    private fun addRiskAndAction(document: Document, inspection: Inspection) {
+        val table = Table(floatArrayOf(1f, 1f)).useAllAvailableWidth()
+        table.setMarginBottom(10f)
+
+        val risk = "${inspection.unsafeCondition}\n\n${inspection.description}".trim()
+
+        table.addCell(
+            textBox(
+                title = "RISCO IDENTIFICADO",
+                text = risk,
+                titleColor = red
+            )
         )
 
-        right.add(
-            Paragraph("AÇÃO IMEDIATA")
+        table.addCell(
+            textBox(
+                title = "AÇÃO IMEDIATA",
+                text = inspection.immediateAction.ifBlank { "-" },
+                titleColor = orange
+            )
+        )
+
+        document.add(table)
+    }
+
+    private fun textBox(title: String, text: String, titleColor: DeviceRgb): Cell {
+        val bold = PdfFontFactory.createFont("Helvetica-Bold")
+        val regular = PdfFontFactory.createFont("Helvetica")
+
+        val cell = Cell()
+            .setBorder(SolidBorder(borderGray, 0.8f))
+            .setPadding(10f)
+            .setMinHeight(135f)
+
+        cell.add(
+            Paragraph(title)
                 .setFont(bold)
-                .setFontSize(15f)
-                .setFontColor(orange)
-        )
-
-        right.add(
-            Paragraph(valueOrDash(inspection.immediateAction))
-                .setFont(regular)
                 .setFontSize(11f)
-                .setFontColor(dark)
-                .setMarginBottom(12f)
+                .setFontColor(titleColor)
+                .setMarginBottom(6f)
         )
 
-        details.addCell(left)
-        details.addCell(right)
-        body.add(details)
+        cell.add(
+            Paragraph(text)
+                .setFont(regular)
+                .setFontSize(9f)
+                .setFontColor(dark)
+                .setMultipliedLeading(1.05f)
+        )
 
-        main.addCell(body)
-        document.add(main)
-
-        addPhotos(document, inspection)
+        return cell
     }
 
     private fun addPhotos(document: Document, inspection: Inspection) {
         val bold = PdfFontFactory.createFont("Helvetica-Bold")
 
-        val box = Table(floatArrayOf(1f, 1f)).useAllAvailableWidth()
-        box.setMarginTop(14f)
-        box.setBorder(SolidBorder(lightPurple, 1f))
+        val table = Table(floatArrayOf(1f, 1f)).useAllAvailableWidth()
+        table.setMarginTop(4f)
 
         val before = Cell()
-            .setBorder(Border.NO_BORDER)
-            .setPadding(12f)
+            .setBorder(SolidBorder(borderGray, 0.8f))
+            .setPadding(8f)
+            .setMinHeight(235f)
 
         before.add(
             Paragraph("FOTO ANTES")
                 .setFont(bold)
-                .setFontSize(13f)
+                .setFontSize(11f)
                 .setFontColor(purple)
-                .setMarginBottom(8f)
+                .setTextAlignment(TextAlignment.CENTER)
+                .setMarginBottom(6f)
         )
 
-        inspection.beforePhotoPath?.let { addImage(before, it) }
+        inspection.beforePhotoPath?.let {
+            addImage(before, it)
+        } ?: before.add(emptyImageText())
 
         val after = Cell()
-            .setBorder(Border.NO_BORDER)
-            .setPadding(12f)
+            .setBorder(SolidBorder(borderGray, 0.8f))
+            .setPadding(8f)
+            .setMinHeight(235f)
 
         after.add(
             Paragraph("FOTO DEPOIS")
                 .setFont(bold)
-                .setFontSize(13f)
+                .setFontSize(11f)
                 .setFontColor(purple)
-                .setMarginBottom(8f)
+                .setTextAlignment(TextAlignment.CENTER)
+                .setMarginBottom(6f)
         )
 
-        inspection.afterPhotoPath?.let { addImage(after, it) }
+        inspection.afterPhotoPath?.let {
+            addImage(after, it)
+        } ?: after.add(emptyImageText())
 
-        box.addCell(before)
-        box.addCell(after)
+        table.addCell(before)
+        table.addCell(after)
 
-        document.add(box)
-    }
-
-    private fun addInfo(cell: Cell, label: String, value: String) {
-        val bold = PdfFontFactory.createFont("Helvetica-Bold")
-        val regular = PdfFontFactory.createFont("Helvetica")
-
-        cell.add(
-            Paragraph(label)
-                .setFont(bold)
-                .setFontSize(11f)
-                .setFontColor(dark)
-                .setMarginBottom(0f)
-        )
-
-        cell.add(
-            Paragraph(valueOrDash(value))
-                .setFont(regular)
-                .setFontSize(11f)
-                .setFontColor(dark)
-                .setMarginBottom(14f)
-        )
+        document.add(table)
     }
 
     private fun addImage(cell: Cell, imagePath: String) {
@@ -298,30 +315,43 @@ class PdfReportGenerator(private val context: Context) {
 
         try {
             val file = File(imagePath)
+
             if (!file.exists()) {
-                cell.add(Paragraph("[Imagem não disponível]").setFont(italic).setFontSize(9f))
+                cell.add(emptyImageText())
                 return
             }
 
             val image = Image(ImageDataFactory.create(imagePath))
-
             val width = image.imageWidth
             val height = image.imageHeight
 
             if (height > width) {
-                image.scaleToFit(220f, 300f)
+                image.scaleToFit(205f, 205f)
             } else {
-                image.scaleToFit(260f, 200f)
+                image.scaleToFit(235f, 185f)
             }
+
+            image.setHorizontalAlignment(com.itextpdf.layout.properties.HorizontalAlignment.CENTER)
 
             cell.add(image)
 
         } catch (e: Exception) {
-            cell.add(Paragraph("[Imagem não disponível]").setFont(italic).setFontSize(9f))
+            cell.add(
+                Paragraph("[Imagem não disponível]")
+                    .setFont(italic)
+                    .setFontSize(9f)
+                    .setTextAlignment(TextAlignment.CENTER)
+            )
         }
     }
 
-    private fun valueOrDash(value: String?): String {
-        return if (value.isNullOrBlank()) "-" else value
+    private fun emptyImageText(): Paragraph {
+        val italic = PdfFontFactory.createFont("Helvetica-Oblique")
+
+        return Paragraph("[Imagem não disponível]")
+            .setFont(italic)
+            .setFontSize(9f)
+            .setFontColor(dark)
+            .setTextAlignment(TextAlignment.CENTER)
     }
 }
