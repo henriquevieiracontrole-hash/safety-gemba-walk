@@ -28,7 +28,7 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
     val authState by authViewModel.authState.collectAsState()
-    
+
     val startDestination = if (authState.isAuthenticated) "home" else "login"
 
     NavHost(
@@ -38,34 +38,34 @@ fun AppNavigation() {
         composable("login") {
             LoginScreen(navController = navController)
         }
-        
-  composable("new_inspection") {
-    NewInspectionScreen(
-        navController = navController,
-        inspectionId = 0L
-    )
-}
 
-composable(
-    route = "new_inspection/{inspectionId}",
-    arguments = listOf(
-        navArgument("inspectionId") { type = NavType.LongType }
-    )
-) { backStackEntry ->
-    val inspectionId = backStackEntry.arguments?.getLong("inspectionId") ?: 0L
-
-    NewInspectionScreen(
-        navController = navController,
-        inspectionId = inspectionId
-    )
-}
+        composable("register") {
+            RegisterScreen(navController = navController)
+        }
 
         composable("home") {
             HomeScreen(navController = navController)
         }
 
         composable("new_inspection") {
-            NewInspectionScreen(navController = navController)
+            NewInspectionScreen(
+                navController = navController,
+                inspectionId = 0L
+            )
+        }
+
+        composable(
+            route = "new_inspection/{inspectionId}",
+            arguments = listOf(
+                navArgument("inspectionId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val inspectionId = backStackEntry.arguments?.getLong("inspectionId") ?: 0L
+
+            NewInspectionScreen(
+                navController = navController,
+                inspectionId = inspectionId
+            )
         }
 
         composable(
@@ -96,7 +96,6 @@ composable(
     }
 }
 
-// ViewModel Factories
 fun provideHomeViewModelFactory(application: Application): ViewModelProvider.Factory {
     return object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
