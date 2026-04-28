@@ -115,11 +115,10 @@ fun InspectionDetailScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    // Navigate to edit screen
-                    navController.navigate("new_inspection")
-                },
+    FloatingActionButton(
+        onClick = {
+            navController.navigate("new_inspection/${inspectionId}")
+        },
                 containerColor = MaterialTheme.colorScheme.secondary
             ) {
                 Icon(
