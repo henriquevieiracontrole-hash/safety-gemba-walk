@@ -39,9 +39,26 @@ fun AppNavigation() {
             LoginScreen(navController = navController)
         }
         
-        composable("register") {
-            RegisterScreen(navController = navController)
-        }
+  composable("new_inspection") {
+    NewInspectionScreen(
+        navController = navController,
+        inspectionId = 0L
+    )
+}
+
+composable(
+    route = "new_inspection/{inspectionId}",
+    arguments = listOf(
+        navArgument("inspectionId") { type = NavType.LongType }
+    )
+) { backStackEntry ->
+    val inspectionId = backStackEntry.arguments?.getLong("inspectionId") ?: 0L
+
+    NewInspectionScreen(
+        navController = navController,
+        inspectionId = inspectionId
+    )
+}
 
         composable("home") {
             HomeScreen(navController = navController)
