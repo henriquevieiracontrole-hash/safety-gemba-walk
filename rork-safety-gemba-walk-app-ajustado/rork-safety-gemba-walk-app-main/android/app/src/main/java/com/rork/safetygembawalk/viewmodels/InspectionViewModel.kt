@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.rork.safetygembawalk.data.AiAnalysisResult
 import com.rork.safetygembawalk.data.Inspection
+import com.rork.safetygembawalk.data.InspectionActionItem
 import com.rork.safetygembawalk.data.InspectionRepository
 import com.rork.safetygembawalk.data.InspectionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,15 +69,14 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
     private val _formState = MutableStateFlow(InspectionFormState())
     val formState: StateFlow<InspectionFormState> = _formState.asStateFlow()
 
-    private var currentInspectionId: Long = 0
+    private var currentInspectionId: Long = 0L
+    private var currentActionId: Long = 0L
 
     init {
         val user = userRepo.getCurrentUser()
-        user?.let {
-            _formState.value = _formState.value.copy(
-                inspectorName = it.fullName
-            )
-        }
+        _formState.value = _formState.value.copy(
+            inspectorName = user?.fullName ?: ""
+        )
     }
 
     fun onAction(action: InspectionAction) {
@@ -135,6 +135,7 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
 
             is InspectionAction.SaveInspection -> saveInspection()
             is InspectionAction.LoadInspection -> loadInspection(action.id)
+
             is InspectionAction.ClearError -> _formState.value =
                 _formState.value.copy(errorMessage = null)
 
@@ -148,9 +149,11 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             val inputStream = context.contentResolver.openInputStream(uri)
             val filename = "${prefix}${UUID.randomUUID()}.jpg"
             val file = File(context.filesDir, filename)
+
             FileOutputStream(file).use { outputStream ->
                 inputStream?.copyTo(outputStream)
             }
+
             inputStream?.close()
             file.absolutePath
         } catch (e: Exception) {
@@ -173,8 +176,8 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
 
         _formState.value = state.copy(isLoading = true)
 
-        val inspection = Inspection(
-            id = currentInspectionId,
+        val actionItem = InspectionActionItem(
+            id = currentActionId,
             unsafeCondition = state.unsafeCondition,
             description = state.description,
             immediateAction = state.immediateAction,
@@ -183,48 +186,76 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             workOrderOpenDate = state.workOrderOpenDate,
             category = state.category,
             isImmediateAction = state.isImmediateAction,
-            location = state.location,
-            inspectorName = state.inspectorName,
             beforePhotoPath = state.beforePhotoPath,
             afterPhotoPath = state.afterPhotoPath,
-            status = state.status,
-            createdAt = if (currentInspectionId == 0L)
-                System.currentTimeMillis()
-            else
-                repository.getInspectionById(currentInspectionId)?.createdAt
-                    ?: System.currentTimeMillis()
+            status = state.status
         )
 
-        repository.insertInspection(inspection)
+        if (currentInspectionId == 0L) {
+            val inspection = Inspection(
+                id = 0L,
+                title = state.unsafeCondition,
+                location = state.location,
+                inspectorName = state.inspectorName,
+                status = state.status,
+                actions = listOf(actionItem.copy(id = System.currentTimeMillis()))
+            )
+
+            repository.insertInspection(inspection)
+        } else {
+            val existing = repository.getInspectionById(currentInspectionId)
+
+            if (existing != null) {
+                val updatedInspection = existing.copy(
+                    title = existing.title.ifBlank { state.unsafeCondition },
+                    location = state.location,
+                    inspectorName = state.inspectorName,
+                    status = state.status
+                )
+
+                repository.updateInspection(updatedInspection)
+
+                if (currentActionId == 0L) {
+                    repository.addAction(currentInspectionId, actionItem)
+                } else {
+                    repository.updateAction(currentInspectionId, actionItem)
+                }
+            }
+        }
+
         _formState.value = state.copy(isLoading = false, isSaved = true)
     }
 
     private fun loadInspection(id: Long) {
         if (id == 0L) return
 
-        val inspection = repository.getInspectionById(id)
-        inspection?.let {
-            currentInspectionId = inspection.id
-            _formState.value = InspectionFormState(
-                unsafeCondition = inspection.unsafeCondition,
-                description = inspection.description,
-                immediateAction = inspection.immediateAction,
-                hasWorkOrder = inspection.hasWorkOrder,
-                workOrderNumber = inspection.workOrderNumber ?: "",
-                workOrderOpenDate = inspection.workOrderOpenDate,
-                category = inspection.category,
-                isImmediateAction = inspection.isImmediateAction,
-                location = inspection.location,
-                inspectorName = inspection.inspectorName,
-                beforePhotoPath = inspection.beforePhotoPath,
-                afterPhotoPath = inspection.afterPhotoPath,
-                status = inspection.status
-            )
-        }
+        val inspection = repository.getInspectionById(id) ?: return
+        currentInspectionId = inspection.id
+
+        val firstAction = inspection.actions.firstOrNull()
+        currentActionId = firstAction?.id ?: 0L
+
+        _formState.value = InspectionFormState(
+            unsafeCondition = firstAction?.unsafeCondition ?: inspection.title,
+            description = firstAction?.description ?: "",
+            immediateAction = firstAction?.immediateAction ?: "",
+            hasWorkOrder = firstAction?.hasWorkOrder ?: false,
+            workOrderNumber = firstAction?.workOrderNumber ?: "",
+            workOrderOpenDate = firstAction?.workOrderOpenDate,
+            category = firstAction?.category ?: "Segurança",
+            isImmediateAction = firstAction?.isImmediateAction ?: false,
+            location = inspection.location,
+            inspectorName = inspection.inspectorName,
+            beforePhotoPath = firstAction?.beforePhotoPath,
+            afterPhotoPath = firstAction?.afterPhotoPath,
+            status = firstAction?.status ?: inspection.status
+        )
     }
 
     fun resetForm() {
-        currentInspectionId = 0
+        currentInspectionId = 0L
+        currentActionId = 0L
+
         val user = userRepo.getCurrentUser()
         _formState.value = InspectionFormState(
             inspectorName = user?.fullName ?: ""
