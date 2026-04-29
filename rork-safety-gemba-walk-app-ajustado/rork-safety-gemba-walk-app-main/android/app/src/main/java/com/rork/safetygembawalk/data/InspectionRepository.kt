@@ -40,7 +40,11 @@ class InspectionRepository private constructor(context: Context) {
     fun getAllInspections(): Flow<List<Inspection>> = inspections
 
     fun getInspectionsByStatus(status: InspectionStatus): Flow<List<Inspection>> =
-        inspections.map { list -> list.filter { it.status == status } }
+        inspections.map { list ->
+            list.filter { inspection ->
+                inspection.status == status
+            }
+        }
 
     fun getInspectionById(id: Long): Inspection? {
         return _inspections.value.find { it.id == id }
@@ -49,9 +53,14 @@ class InspectionRepository private constructor(context: Context) {
     fun insertInspection(inspection: Inspection): Long {
         val currentList = _inspections.value.toMutableList()
         val newId = if (inspection.id == 0L) System.currentTimeMillis() else inspection.id
-        val newInspection = inspection.copy(id = newId, updatedAt = System.currentTimeMillis())
+
+        val newInspection = inspection.copy(
+            id = newId,
+            updatedAt = System.currentTimeMillis()
+        )
 
         val existingIndex = currentList.indexOfFirst { it.id == newId }
+
         if (existingIndex >= 0) {
             currentList[existingIndex] = newInspection
         } else {
@@ -60,34 +69,112 @@ class InspectionRepository private constructor(context: Context) {
 
         _inspections.value = currentList
         saveInspections(currentList)
+
         return newId
     }
 
-    fun updateInspection(inspection: Inspection) {
+    fun addAction(
+        inspectionId: Long,
+        action: InspectionActionItem
+    ) {
         val currentList = _inspections.value.toMutableList()
-        val index = currentList.indexOfFirst { it.id == inspection.id }
+        val index = currentList.indexOfFirst { it.id == inspectionId }
+
         if (index >= 0) {
-            currentList[index] = inspection.copy(updatedAt = System.currentTimeMillis())
+            val inspection = currentList[index]
+
+            val newAction = action.copy(
+                id = if (action.id == 0L) System.currentTimeMillis() else action.id,
+                updatedAt = System.currentTimeMillis()
+            )
+
+            currentList[index] = inspection.copy(
+                actions = inspection.actions + newAction,
+                updatedAt = System.currentTimeMillis()
+            )
+
             _inspections.value = currentList
             saveInspections(currentList)
         }
     }
 
-    fun deleteInspection(inspection: Inspection) {
-        deleteInspectionById(inspection.id)
+    fun updateAction(
+        inspectionId: Long,
+        action: InspectionActionItem
+    ) {
+        val currentList = _inspections.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == inspectionId }
+
+        if (index >= 0) {
+            val inspection = currentList[index]
+
+            val updatedActions = inspection.actions.map {
+                if (it.id == action.id) {
+                    action.copy(updatedAt = System.currentTimeMillis())
+                } else {
+                    it
+                }
+            }
+
+            currentList[index] = inspection.copy(
+                actions = updatedActions,
+                updatedAt = System.currentTimeMillis()
+            )
+
+            _inspections.value = currentList
+            saveInspections(currentList)
+        }
+    }
+
+    fun deleteAction(
+        inspectionId: Long,
+        actionId: Long
+    ) {
+        val currentList = _inspections.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == inspectionId }
+
+        if (index >= 0) {
+            val inspection = currentList[index]
+
+            currentList[index] = inspection.copy(
+                actions = inspection.actions.filterNot { it.id == actionId },
+                updatedAt = System.currentTimeMillis()
+            )
+
+            _inspections.value = currentList
+            saveInspections(currentList)
+        }
+    }
+
+    fun updateInspection(inspection: Inspection) {
+        val currentList = _inspections.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == inspection.id }
+
+        if (index >= 0) {
+            currentList[index] = inspection.copy(
+                updatedAt = System.currentTimeMillis()
+            )
+
+            _inspections.value = currentList
+            saveInspections(currentList)
+        }
     }
 
     fun deleteInspectionById(id: Long) {
         val currentList = _inspections.value.toMutableList()
         currentList.removeAll { it.id == id }
+
         _inspections.value = currentList
         saveInspections(currentList)
     }
 
-    fun getInspectionCount(): Flow<Int> = inspections.map { it.size }
+    fun getInspectionCount(): Flow<Int> =
+        inspections.map { it.size }
 
     fun getInspectionCountByStatus(status: InspectionStatus): Flow<Int> =
-        inspections.map { list -> list.count { it.status == status } }
+        inspections.map { list ->
+            list.count { it.status == status }
+        }
 
     companion object {
         @Volatile
@@ -95,7 +182,9 @@ class InspectionRepository private constructor(context: Context) {
 
         fun getInstance(context: Context): InspectionRepository {
             return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: InspectionRepository(context.applicationContext).also { INSTANCE = it }
+                INSTANCE ?: InspectionRepository(
+                    context.applicationContext
+                ).also { INSTANCE = it }
             }
         }
     }
