@@ -9,8 +9,24 @@ import java.time.format.DateTimeFormatter
 data class Inspection(
     val id: Long = System.currentTimeMillis(),
 
-    val unsafeCondition: String,
-    val description: String,
+    val title: String = "",
+    val location: String = "",
+    val inspectorName: String = "",
+
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+
+    val status: InspectionStatus = InspectionStatus.PENDING,
+
+    val actions: List<InspectionActionItem> = emptyList()
+)
+
+@Serializable
+data class InspectionActionItem(
+    val id: Long = System.currentTimeMillis(),
+
+    val unsafeCondition: String = "",
+    val description: String = "",
     val immediateAction: String = "",
 
     val hasWorkOrder: Boolean = false,
@@ -20,16 +36,14 @@ data class Inspection(
     val category: String = "Segurança",
 
     val isImmediateAction: Boolean = false,
-    val location: String = "",
-    val inspectorName: String = "",
-
-    val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis(),
 
     val beforePhotoPath: String? = null,
     val afterPhotoPath: String? = null,
 
-    val status: InspectionStatus = InspectionStatus.PENDING
+    val status: InspectionStatus = InspectionStatus.PENDING,
+
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 @Serializable
@@ -47,7 +61,14 @@ fun Inspection.formattedDate(): String {
     return formatter.format(instant)
 }
 
-fun Inspection.formattedWorkOrderOpenDate(): String {
+fun InspectionActionItem.formattedDate(): String {
+    val instant = Instant.ofEpochMilli(createdAt)
+    val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+        .withZone(ZoneId.systemDefault())
+    return formatter.format(instant)
+}
+
+fun InspectionActionItem.formattedWorkOrderOpenDate(): String {
     if (workOrderOpenDate == null) return "-"
     val instant = Instant.ofEpochMilli(workOrderOpenDate)
     val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
@@ -56,9 +77,20 @@ fun Inspection.formattedWorkOrderOpenDate(): String {
 }
 
 fun Inspection.shortDescription(): String {
-    return if (description.length > 100) {
-        description.take(100) + "..."
+    val firstAction = actions.firstOrNull()
+    val text = firstAction?.description ?: title
+
+    return if (text.length > 100) {
+        text.take(100) + "..."
     } else {
-        description
+        text
     }
+}
+
+fun Inspection.pendingActionsCount(): Int {
+    return actions.count { it.status == InspectionStatus.PENDING }
+}
+
+fun Inspection.completedActionsCount(): Int {
+    return actions.count { it.status == InspectionStatus.COMPLETED }
 }
