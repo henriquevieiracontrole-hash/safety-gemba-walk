@@ -141,16 +141,96 @@ fun InspectionDetailScreen(
                 onBack = { navController.popBackStack() }
             )
         } else {
-            InspectionDetailContent(
-                inspection = inspection!!,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
-            )
+    Column(
+    modifier = Modifier
+        .fillMaxSize()
+        .padding(paddingValues)
+        .padding(16.dp)
+) {
+
+    Text(
+        text = "Inspeção #${inspection!!.id}",
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Text("Local: ${inspection!!.location}")
+    Text("Inspetor: ${inspection!!.inspectorName}")
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(
+        text = "AÇÕES (${inspection!!.actions.size})",
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    inspection!!.actions.forEach { action ->
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            elevation = CardDefaults.cardElevation(3.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+
+                Text(
+                    text = action.unsafeCondition,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = action.description,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = {
+                        navController.navigate(
+                            "edit_action/${inspection!!.id}/${action.id}"
+                        )
+                    }
+                ) {
+                    Text("Editar ação")
+                }
+            }
         }
     }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Button(
+        onClick = {
+            navController.navigate("add_action/${inspection!!.id}")
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("➕ Adicionar nova ação")
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Button(
+        onClick = {
+            repository.updateInspection(
+                inspection!!.copy(status = InspectionStatus.COMPLETED)
+            )
+            navController.popBackStack()
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("✅ Fechar inspeção")
+    }
+}
 
     if (showDeleteDialog) {
         AlertDialog(
