@@ -10,6 +10,7 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import com.rork.safetygembawalk.data.Inspection
+import com.rork.safetygembawalk.data.InspectionActionItem
 import com.rork.safetygembawalk.data.InspectionStatus
 import com.rork.safetygembawalk.data.formattedDate
 import com.rork.safetygembawalk.data.formattedWorkOrderOpenDate
@@ -41,8 +42,14 @@ class PptReportGenerator(private val context: Context) {
         val fileName = "Safety_Gemba_Walk_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())}.pptx"
         val file = File(context.getExternalFilesDir(null), fileName)
 
-        val slides = inspections.mapIndexed { index, inspection ->
-            createSlideImage(inspection, index + 1)
+        val slides = mutableListOf<ByteArray>()
+        var number = 1
+
+        inspections.forEach { inspection ->
+            inspection.actions.forEach { action ->
+                slides.add(createSlideImage(inspection, action, number))
+                number++
+            }
         }
 
         createPptx(file, slides)
@@ -50,7 +57,11 @@ class PptReportGenerator(private val context: Context) {
         return file.absolutePath
     }
 
-    private fun createSlideImage(inspection: Inspection, number: Int): ByteArray {
+    private fun createSlideImage(
+        inspection: Inspection,
+        action: InspectionActionItem,
+        number: Int
+    ): ByteArray {
         val bitmap = Bitmap.createBitmap(slideW, slideH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -58,7 +69,7 @@ class PptReportGenerator(private val context: Context) {
 
         drawText(canvas, "SAFETY GEMBA WALK", 58f, 58f, 32f, navy, true)
         drawText(canvas, "Safety is my first job!!", 60f, 88f, 17f, red, true)
-        drawText(canvas, "Relatório de inspeção #$number", 60f, 118f, 16f, purple, true)
+        drawText(canvas, "Ação #$number", 60f, 118f, 16f, purple, true)
         drawText(
             canvas,
             "Data: ${SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())}",
@@ -71,9 +82,9 @@ class PptReportGenerator(private val context: Context) {
 
         drawLine(canvas, 58f, 140f, 1185f, 140f, purple, 3f)
 
-        drawInfoBlock(canvas, inspection)
-        drawMainCards(canvas, inspection)
-        drawPhotos(canvas, inspection)
+        drawInfoBlock(canvas, inspection, action)
+        drawMainCards(canvas, action)
+        drawPhotos(canvas, action)
 
         drawText(
             canvas,
@@ -110,7 +121,11 @@ class PptReportGenerator(private val context: Context) {
         }
     }
 
-    private fun drawInfoBlock(canvas: Canvas, inspection: Inspection) {
+    private fun drawInfoBlock(
+        canvas: Canvas,
+        inspection: Inspection,
+        action: InspectionActionItem
+    ) {
         val startX = 58f
         val startY = 158f
         val cardW = 184f
@@ -118,27 +133,27 @@ class PptReportGenerator(private val context: Context) {
         val gap = 10f
 
         drawInfoCard(canvas, "Data da inspeção", inspection.formattedDate(), startX, startY, cardW, cardH)
-        drawInfoCard(canvas, "Categoria", inspection.category.ifBlank { "Segurança" }, startX + cardW + gap, startY, cardW, cardH)
+        drawInfoCard(canvas, "Categoria", action.category.ifBlank { "Segurança" }, startX + cardW + gap, startY, cardW, cardH)
         drawInfoCard(canvas, "Local", inspection.location.ifBlank { "-" }, startX + (cardW + gap) * 2, startY, cardW, cardH)
 
         drawInfoCard(canvas, "Inspetor", inspection.inspectorName.ifBlank { "-" }, startX, startY + cardH + gap, cardW, cardH)
 
-        if (inspection.hasWorkOrder) {
-            drawInfoCard(canvas, "Ordem de Serviço", inspection.workOrderNumber ?: "N/A", startX + cardW + gap, startY + cardH + gap, cardW, cardH)
-            drawInfoCard(canvas, "Abertura O.S.", inspection.formattedWorkOrderOpenDate(), startX + (cardW + gap) * 2, startY + cardH + gap, cardW, cardH)
+        if (action.hasWorkOrder) {
+            drawInfoCard(canvas, "Ordem de Serviço", action.workOrderNumber ?: "N/A", startX + cardW + gap, startY + cardH + gap, cardW, cardH)
+            drawInfoCard(canvas, "Abertura O.S.", action.formattedWorkOrderOpenDate(), startX + (cardW + gap) * 2, startY + cardH + gap, cardW, cardH)
         } else {
             drawInfoCard(canvas, "Ordem de Serviço", "Não aplicável", startX + cardW + gap, startY + cardH + gap, cardW, cardH)
             drawInfoCard(canvas, "Abertura O.S.", "Não aplicável", startX + (cardW + gap) * 2, startY + cardH + gap, cardW, cardH)
         }
 
-        val statusText = when (inspection.status) {
+        val statusText = when (action.status) {
             InspectionStatus.COMPLETED -> "CONCLUÍDO"
             InspectionStatus.IN_PROGRESS -> "EM ANDAMENTO"
             InspectionStatus.PENDING -> "PENDENTE"
             InspectionStatus.CANCELLED -> "CANCELADO"
         }
 
-        val statusColor = when (inspection.status) {
+        val statusColor = when (action.status) {
             InspectionStatus.COMPLETED -> green
             InspectionStatus.IN_PROGRESS -> yellow
             InspectionStatus.PENDING -> red
@@ -163,7 +178,7 @@ class PptReportGenerator(private val context: Context) {
         drawText(canvas, value, x + 10f, y + 40f, 12f, dark, false)
     }
 
-    private fun drawMainCards(canvas: Canvas, inspection: Inspection) {
+    private fun drawMainCards(canvas: Canvas, action: InspectionActionItem) {
         val x1 = 58f
         val y1 = 300f
         val cardW = 360f
@@ -172,23 +187,23 @@ class PptReportGenerator(private val context: Context) {
         drawExecutiveCard(
             canvas = canvas,
             title = "RISCO IDENTIFICADO",
-            text = inspection.unsafeCondition.ifBlank { "-" },
+            text = action.unsafeCondition.ifBlank { "-" },
             x = x1,
             y = y1,
             w = cardW,
             h = cardH,
-            titleColor = red
+            titleColor = purple
         )
 
         drawExecutiveCard(
             canvas = canvas,
             title = "AÇÃO IMEDIATA",
-            text = inspection.immediateAction.ifBlank { "-" },
+            text = action.immediateAction.ifBlank { "-" },
             x = x1 + cardW + 18f,
             y = y1,
             w = cardW,
             h = cardH,
-            titleColor = orange
+            titleColor = purple
         )
 
         drawRoundBox(canvas, 58f, 430f, 738f, 142f, Color.WHITE, borderGray, 10f, 1.5f)
@@ -199,13 +214,13 @@ class PptReportGenerator(private val context: Context) {
             322f,
             460f,
             17f,
-            dark,
+            purple,
             true
         )
 
         drawWrappedText(
             canvas,
-            inspection.description.ifBlank { "-" },
+            action.description.ifBlank { "-" },
             82f,
             492f,
             690f,
@@ -230,7 +245,7 @@ class PptReportGenerator(private val context: Context) {
         drawWrappedText(canvas, text, x + 18f, y + 62f, w - 36f, 15f, dark, 3)
     }
 
-    private fun drawPhotos(canvas: Canvas, inspection: Inspection) {
+    private fun drawPhotos(canvas: Canvas, action: InspectionActionItem) {
         val boxX = 830f
         val boxY = 245f
         val boxW = 370f
@@ -241,8 +256,8 @@ class PptReportGenerator(private val context: Context) {
         drawText(canvas, "FOTO ANTES", boxX + 52f, boxY + 34f, 15f, purple, true)
         drawText(canvas, "FOTO DEPOIS", boxX + 212f, boxY + 34f, 15f, purple, true)
 
-        drawPhoto(canvas, inspection.beforePhotoPath, boxX + 30f, boxY + 56f, 135f, 230f)
-        drawPhoto(canvas, inspection.afterPhotoPath, boxX + 205f, boxY + 56f, 135f, 230f)
+        drawPhoto(canvas, action.beforePhotoPath, boxX + 30f, boxY + 56f, 135f, 230f)
+        drawPhoto(canvas, action.afterPhotoPath, boxX + 205f, boxY + 56f, 135f, 230f)
     }
 
     private fun drawPhoto(canvas: Canvas, path: String?, x: Float, y: Float, w: Float, h: Float) {
@@ -268,15 +283,7 @@ class PptReportGenerator(private val context: Context) {
         }
     }
 
-    private fun drawText(
-        canvas: Canvas,
-        text: String,
-        x: Float,
-        y: Float,
-        size: Float,
-        color: Int,
-        bold: Boolean
-    ) {
+    private fun drawText(canvas: Canvas, text: String, x: Float, y: Float, size: Float, color: Int, bold: Boolean) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.textSize = size
         paint.color = color
@@ -284,16 +291,7 @@ class PptReportGenerator(private val context: Context) {
         canvas.drawText(text, x, y, paint)
     }
 
-    private fun drawWrappedText(
-        canvas: Canvas,
-        text: String,
-        x: Float,
-        y: Float,
-        maxWidth: Float,
-        size: Float,
-        color: Int,
-        maxLines: Int
-    ) {
+    private fun drawWrappedText(canvas: Canvas, text: String, x: Float, y: Float, maxWidth: Float, size: Float, color: Int, maxLines: Int) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         paint.textSize = size
         paint.color = color
@@ -323,17 +321,7 @@ class PptReportGenerator(private val context: Context) {
         }
     }
 
-    private fun drawRoundBox(
-        canvas: Canvas,
-        x: Float,
-        y: Float,
-        w: Float,
-        h: Float,
-        fill: Int,
-        stroke: Int,
-        radius: Float,
-        strokeWidth: Float
-    ) {
+    private fun drawRoundBox(canvas: Canvas, x: Float, y: Float, w: Float, h: Float, fill: Int, stroke: Int, radius: Float, strokeWidth: Float) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val rect = RectF(x, y, x + w, y + h)
 
@@ -418,22 +406,18 @@ $slides
 </Relationships>"""
     }
 
-    private fun coreProps(): String {
-        return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    private fun coreProps(): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/">
 <dc:title>Safety Gemba Walk</dc:title>
 <dc:creator>Ahlstrom</dc:creator>
 <cp:lastModifiedBy>Ahlstrom</cp:lastModifiedBy>
 </cp:coreProperties>"""
-    }
 
-    private fun appProps(count: Int): String {
-        return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+    private fun appProps(count: Int): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">
 <Application>Microsoft PowerPoint</Application>
 <Slides>$count</Slides>
 </Properties>"""
-    }
 
     private fun presentationXml(count: Int): String {
         val ids = (1..count).joinToString("") {
@@ -462,49 +446,37 @@ $slideRels
 </Relationships>"""
     }
 
-    private fun slideMasterXml(): String {
-        return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    private fun slideMasterXml(): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
 <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
 <p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>
 <p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles>
 </p:sldMaster>"""
-    }
 
-    private fun slideMasterRels(): String {
-        return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    private fun slideMasterRels(): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>
 </Relationships>"""
-    }
 
-    private fun slideLayoutXml(): String {
-        return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    private fun slideLayoutXml(): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank" preserve="1">
 <p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
 </p:sldLayout>"""
-    }
 
-    private fun slideLayoutRels(): String {
-        return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    private fun slideLayoutRels(): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
 </Relationships>"""
-    }
 
-    private fun slideRel(n: Int): String {
-        return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    private fun slideRel(n: Int): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image$n.png"/>
 </Relationships>"""
-    }
 
-    private fun slideXml(n: Int): String {
-        return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    private fun slideXml(n: Int): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
-<p:cSld>
-<p:spTree>
+<p:cSld><p:spTree>
 <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
 <p:grpSpPr/>
 <p:pic>
@@ -512,14 +484,11 @@ $slideRels
 <p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
 <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
 </p:pic>
-</p:spTree>
-</p:cSld>
+</p:spTree></p:cSld>
 <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
 </p:sld>"""
-    }
 
-    private fun themeXml(): String {
-        return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    private fun themeXml(): String = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office Theme">
 <a:themeElements>
 <a:clrScheme name="Office">
@@ -542,5 +511,4 @@ $slideRels
 <a:objectDefaults/>
 <a:extraClrSchemeLst/>
 </a:theme>"""
-    }
 }
