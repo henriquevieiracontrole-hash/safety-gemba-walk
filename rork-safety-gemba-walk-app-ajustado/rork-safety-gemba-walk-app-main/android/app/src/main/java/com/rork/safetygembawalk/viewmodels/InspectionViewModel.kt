@@ -56,6 +56,8 @@ sealed interface InspectionAction {
     data class SetAfterPhoto(val uri: Uri) : InspectionAction
     data object SaveInspection : InspectionAction
     data class LoadInspection(val id: Long) : InspectionAction
+    data class StartNewAction(val inspectionId: Long) : InspectionAction
+    data class LoadAction(val inspectionId: Long, val actionId: Long) : InspectionAction
     data object ClearError : InspectionAction
     data object AnalyzeWithAi : InspectionAction
     data class ApplyAiAnalysis(val result: AiAnalysisResult) : InspectionAction
@@ -135,6 +137,8 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
 
             is InspectionAction.SaveInspection -> saveInspection()
             is InspectionAction.LoadInspection -> loadInspection(action.id)
+            is InspectionAction.StartNewAction -> startNewAction(action.inspectionId)
+            is InspectionAction.LoadAction -> loadAction(action.inspectionId, action.actionId)
 
             is InspectionAction.ClearError -> _formState.value =
                 _formState.value.copy(errorMessage = null)
@@ -142,6 +146,44 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             is InspectionAction.AnalyzeWithAi -> analyzeWithAi()
             is InspectionAction.ApplyAiAnalysis -> applyAiAnalysis(action.result)
         }
+    }
+
+    private fun startNewAction(inspectionId: Long) {
+        currentInspectionId = inspectionId
+        currentActionId = 0L
+
+        val inspection = repository.getInspectionById(inspectionId)
+        val user = userRepo.getCurrentUser()
+
+        _formState.value = InspectionFormState(
+            location = inspection?.location ?: "",
+            inspectorName = inspection?.inspectorName ?: user?.fullName ?: "",
+            category = "Segurança"
+        )
+    }
+
+    private fun loadAction(inspectionId: Long, actionId: Long) {
+        val inspection = repository.getInspectionById(inspectionId) ?: return
+        val action = inspection.actions.firstOrNull { it.id == actionId } ?: return
+
+        currentInspectionId = inspection.id
+        currentActionId = action.id
+
+        _formState.value = InspectionFormState(
+            unsafeCondition = action.unsafeCondition,
+            description = action.description,
+            immediateAction = action.immediateAction,
+            hasWorkOrder = action.hasWorkOrder,
+            workOrderNumber = action.workOrderNumber ?: "",
+            workOrderOpenDate = action.workOrderOpenDate,
+            category = action.category,
+            isImmediateAction = action.isImmediateAction,
+            location = inspection.location,
+            inspectorName = inspection.inspectorName,
+            beforePhotoPath = action.beforePhotoPath,
+            afterPhotoPath = action.afterPhotoPath,
+            status = action.status
+        )
     }
 
     private fun saveImageToInternalStorage(uri: Uri, prefix: String): String? {
@@ -192,13 +234,15 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
         )
 
         if (currentInspectionId == 0L) {
+            val newActionId = System.currentTimeMillis()
+
             val inspection = Inspection(
                 id = 0L,
                 title = state.unsafeCondition,
                 location = state.location,
                 inspectorName = state.inspectorName,
-                status = state.status,
-                actions = listOf(actionItem.copy(id = System.currentTimeMillis()))
+                status = InspectionStatus.IN_PROGRESS,
+                actions = listOf(actionItem.copy(id = newActionId))
             )
 
             repository.insertInspection(inspection)
@@ -206,11 +250,18 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             val existing = repository.getInspectionById(currentInspectionId)
 
             if (existing != null) {
+                val updatedStatus =
+                    if (existing.actions.isNotEmpty() && existing.actions.all { it.status == InspectionStatus.COMPLETED }) {
+                        InspectionStatus.COMPLETED
+                    } else {
+                        InspectionStatus.IN_PROGRESS
+                    }
+
                 val updatedInspection = existing.copy(
                     title = existing.title.ifBlank { state.unsafeCondition },
                     location = state.location,
                     inspectorName = state.inspectorName,
-                    status = state.status
+                    status = updatedStatus
                 )
 
                 repository.updateInspection(updatedInspection)
