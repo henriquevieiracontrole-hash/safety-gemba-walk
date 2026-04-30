@@ -47,19 +47,43 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 searchQuery,
                 selectedFilter
             ) { inspections, query, filter ->
+
                 val filteredInspections = inspections.filter { inspection ->
-                    val matchesSearch = query.isEmpty() ||
-                        inspection.unsafeCondition.contains(query, ignoreCase = true) ||
-                        inspection.description.contains(query, ignoreCase = true) ||
-                        inspection.location.contains(query, ignoreCase = true)
-                    val matchesFilter = filter == null || inspection.status == filter
+                    val firstAction = inspection.actions.firstOrNull()
+
+                    val matchesSearch = query.isBlank() ||
+                        inspection.title.contains(query, ignoreCase = true) ||
+                        inspection.location.contains(query, ignoreCase = true) ||
+                        inspection.inspectorName.contains(query, ignoreCase = true) ||
+                        inspection.actions.any { action ->
+                            action.unsafeCondition.contains(query, ignoreCase = true) ||
+                                action.description.contains(query, ignoreCase = true) ||
+                                action.immediateAction.contains(query, ignoreCase = true)
+                        }
+
+                    val matchesFilter = filter == null ||
+                        inspection.status == filter ||
+                        inspection.actions.any { it.status == filter } ||
+                        firstAction?.status == filter
+
                     matchesSearch && matchesFilter
                 }
-                
+
                 val total = inspections.size
-                val pending = inspections.count { it.status == InspectionStatus.PENDING }
-                val completed = inspections.count { it.status == InspectionStatus.COMPLETED }
-                
+
+                val pending = inspections.count { inspection ->
+                    inspection.status == InspectionStatus.PENDING ||
+                        inspection.actions.any { it.status == InspectionStatus.PENDING }
+                }
+
+                val completed = inspections.count { inspection ->
+                    inspection.status == InspectionStatus.COMPLETED ||
+                        (
+                            inspection.actions.isNotEmpty() &&
+                                inspection.actions.all { it.status == InspectionStatus.COMPLETED }
+                        )
+                }
+
                 HomeUiState(
                     inspections = filteredInspections,
                     isLoading = false,
@@ -80,14 +104,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             is HomeAction.OnSearchQueryChange -> {
                 searchQuery.value = action.query
             }
+
             is HomeAction.OnFilterSelect -> {
                 selectedFilter.value = action.status
             }
+
             is HomeAction.DeleteInspection -> {
-                repository.deleteInspection(action.inspection)
+                repository.deleteInspectionById(action.inspection.id)
             }
+
             is HomeAction.Refresh -> {
-                // Flow automatically updates
+                // Flow atualiza automaticamente
             }
         }
     }
