@@ -87,7 +87,8 @@ import java.util.Locale
 @Composable
 fun NewInspectionScreen(
     navController: NavController,
-    inspectionId: Long = 0L,
+    parentInspectionId: Long = 0L,
+    actionId: Long = 0L,
     viewModel: InspectionViewModel = viewModel(
         factory = provideInspectionViewModelFactory(
             LocalContext.current.applicationContext as android.app.Application
@@ -118,12 +119,20 @@ fun NewInspectionScreen(
         "Logística",
         "Outro"
     )
-    LaunchedEffect(inspectionId) {
-    if (inspectionId > 0L) {
-        viewModel.onAction(InspectionAction.LoadInspection(inspectionId))
+LaunchedEffect(parentInspectionId, actionId) {
+    if (parentInspectionId > 0L && actionId > 0L) {
+        viewModel.onAction(
+            InspectionAction.LoadAction(
+                inspectionId = parentInspectionId,
+                actionId = actionId
+            )
+        )
+    } else if (parentInspectionId > 0L) {
+        viewModel.onAction(
+            InspectionAction.StartNewAction(parentInspectionId)
+        )
     }
 }
-
     LaunchedEffect(formState.workOrderOpenDate, formState.hasWorkOrder) {
         workOrderDateText = if (formState.hasWorkOrder) {
             formatDateOnly(formState.workOrderOpenDate)
