@@ -1,59 +1,14 @@
 package com.rork.safetygembawalk.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Slideshow
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,7 +24,6 @@ import coil3.compose.AsyncImage
 import com.rork.safetygembawalk.data.Inspection
 import com.rork.safetygembawalk.data.InspectionStatus
 import com.rork.safetygembawalk.data.formattedDate
-import com.rork.safetygembawalk.data.formattedWorkOrderOpenDate
 import com.rork.safetygembawalk.ui.navigation.provideHomeViewModelFactory
 import com.rork.safetygembawalk.viewmodels.AuthAction
 import com.rork.safetygembawalk.viewmodels.AuthViewModel
@@ -109,11 +63,7 @@ fun HomeScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(
-                            "Safety Gemba Walk",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("Safety Gemba Walk", fontWeight = FontWeight.Bold)
                         Text(
                             "Gestão de inspeções",
                             style = MaterialTheme.typography.bodySmall,
@@ -127,17 +77,10 @@ fun HomeScreen(
                 ),
                 actions = {
                     IconButton(onClick = { showFilterMenu = true }) {
-                        Icon(
-                            imageVector = Icons.Default.FilterList,
-                            contentDescription = "Filtrar",
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
+                        Icon(Icons.Default.FilterList, contentDescription = "Filtrar", tint = MaterialTheme.colorScheme.onPrimary)
                     }
 
-                    DropdownMenu(
-                        expanded = showFilterMenu,
-                        onDismissRequest = { showFilterMenu = false }
-                    ) {
+                    DropdownMenu(expanded = showFilterMenu, onDismissRequest = { showFilterMenu = false }) {
                         DropdownMenuItem(
                             text = { Text("Todas") },
                             onClick = {
@@ -158,17 +101,10 @@ fun HomeScreen(
                     }
 
                     IconButton(onClick = { showUserMenu = true }) {
-                        Icon(
-                            imageVector = Icons.Default.AccountCircle,
-                            contentDescription = "Usuário",
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
+                        Icon(Icons.Default.AccountCircle, contentDescription = "Usuário", tint = MaterialTheme.colorScheme.onPrimary)
                     }
 
-                    DropdownMenu(
-                        expanded = showUserMenu,
-                        onDismissRequest = { showUserMenu = false }
-                    ) {
+                    DropdownMenu(expanded = showUserMenu, onDismissRequest = { showUserMenu = false }) {
                         authState.user?.let { user ->
                             DropdownMenuItem(
                                 text = {
@@ -183,12 +119,7 @@ fun HomeScreen(
 
                         DropdownMenuItem(
                             text = { Text("Sair") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Logout,
-                                    contentDescription = null
-                                )
-                            },
+                            leadingIcon = { Icon(Icons.Default.Logout, contentDescription = null) },
                             onClick = {
                                 authViewModel.onAction(AuthAction.Logout)
                                 showUserMenu = false
@@ -197,18 +128,6 @@ fun HomeScreen(
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("new_inspection") },
-                containerColor = MaterialTheme.colorScheme.secondary,
-                contentColor = MaterialTheme.colorScheme.onSecondary
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Nova Inspeção"
-                )
-            }
         }
     ) { paddingValues ->
         Column(
@@ -234,12 +153,7 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 placeholder = { Text("Buscar inspeções...") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = null
-                    )
-                },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp)
             )
@@ -271,12 +185,8 @@ fun HomeScreen(
                     ) { inspection ->
                         InspectionCard(
                             inspection = inspection,
-                            onClick = {
-                                navController.navigate("inspection_detail/${inspection.id}")
-                            },
-                            onDelete = {
-                                inspectionToDelete = inspection
-                            }
+                            onClick = { navController.navigate("inspection_detail/${inspection.id}") },
+                            onDelete = { inspectionToDelete = inspection }
                         )
                     }
                 }
@@ -315,61 +225,26 @@ private fun SummaryCards(
     completedCount: Int,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        SummaryCard(
-            title = "Total",
-            count = totalCount,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1f)
-        )
-        SummaryCard(
-            title = "Pendentes",
-            count = pendingCount,
-            color = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.weight(1f)
-        )
-        SummaryCard(
-            title = "Concluídas",
-            count = completedCount,
-            color = MaterialTheme.colorScheme.tertiary,
-            modifier = Modifier.weight(1f)
-        )
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SummaryCard("Total", totalCount, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+        SummaryCard("Pendentes", pendingCount, MaterialTheme.colorScheme.secondary, Modifier.weight(1f))
+        SummaryCard("Concluídas", completedCount, MaterialTheme.colorScheme.tertiary, Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun SummaryCard(
-    title: String,
-    count: Int,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
+private fun SummaryCard(title: String, count: Int, color: Color, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = color),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = count.toString(),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimary
-            )
-
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-            )
+            Text(count.toString(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+            Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
         }
     }
 }
@@ -380,23 +255,9 @@ private fun QuickActions(
     onPptClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        ActionButton(
-            icon = Icons.Default.PictureAsPdf,
-            label = "PDF",
-            onClick = onPdfClick,
-            modifier = Modifier.weight(1f)
-        )
-
-        ActionButton(
-            icon = Icons.Default.Slideshow,
-            label = "PPT",
-            onClick = onPptClick,
-            modifier = Modifier.weight(1f)
-        )
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        ActionButton(Icons.Default.PictureAsPdf, "PDF", onPdfClick, Modifier.weight(1f))
+        ActionButton(Icons.Default.Slideshow, "PPT", onPptClick, Modifier.weight(1f))
     }
 }
 
@@ -410,31 +271,17 @@ private fun ActionButton(
     Card(
         onClick = onClick,
         modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.width(8.dp))
-
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -445,6 +292,14 @@ private fun InspectionCard(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val firstAction = inspection.actions.firstOrNull()
+    val photoPath = firstAction?.beforePhotoPath
+    val title = inspection.title.ifBlank { firstAction?.unsafeCondition ?: "Inspeção sem título" }
+    val description = firstAction?.description ?: "Sem ações registradas"
+    val category = firstAction?.category ?: "Segurança"
+    val pendingActions = inspection.actions.count { it.status == InspectionStatus.PENDING }
+    val completedActions = inspection.actions.count { it.status == InspectionStatus.COMPLETED }
+
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -452,43 +307,35 @@ private fun InspectionCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
             verticalAlignment = Alignment.Top
         ) {
             Box(
                 modifier = Modifier
                     .size(88.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
             ) {
-                inspection.beforePhotoPath?.let { path ->
-                    if (File(path).exists()) {
-                        AsyncImage(
-                            model = File(path),
-                            contentDescription = "Foto da inspeção",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        EmptyPhotoIcon()
-                    }
-                } ?: EmptyPhotoIcon()
+                if (photoPath != null && File(photoPath).exists()) {
+                    AsyncImage(
+                        model = File(photoPath),
+                        contentDescription = "Foto da inspeção",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    EmptyPhotoIcon()
+                }
             }
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
-                ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = inspection.unsafeCondition.ifBlank { "Sem título" },
+                            text = title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 2,
@@ -498,7 +345,7 @@ private fun InspectionCard(
                         Spacer(modifier = Modifier.height(4.dp))
 
                         Text(
-                            text = inspection.description.ifBlank { "Sem descrição" },
+                            text = description,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
@@ -507,68 +354,22 @@ private fun InspectionCard(
                     }
 
                     IconButton(onClick = onDelete) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Excluir",
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                        Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    Text(
-                        text = inspection.location.takeIf { it.isNotBlank() } ?: "Sem local",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
+                InfoLine(Icons.Default.LocationOn, inspection.location.ifBlank { "Sem local" })
                 Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    Text(
-                        text = inspection.inspectorName.takeIf { it.isNotBlank() } ?: "Sem inspetor",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                InfoLine(Icons.Default.Person, inspection.inspectorName.ifBlank { "Sem inspetor" })
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    StatusChip(status = inspection.status)
-                    CategoryChip(category = inspection.category)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    StatusChip(inspection.status)
+                    CategoryChip(category)
+                    ActionCountChip(inspection.actions.size)
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -579,55 +380,34 @@ private fun InspectionCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                if (inspection.hasWorkOrder) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                    Text(
-                        text = "OS: ${inspection.workOrderNumber?.takeIf { it.isNotBlank() } ?: "N/A"}",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Text(
-                        text = "Abertura OS: ${inspection.formattedWorkOrderOpenDate()}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                if (inspection.immediateAction.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(10.dp)
-                        ) {
-                            Text(
-                                text = "Ação imediata:",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Text(
-                                text = inspection.immediateAction,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                maxLines = 4,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
+                Text(
+                    text = "Ações pendentes: $pendingActions | Concluídas: $completedActions",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun InfoLine(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -644,23 +424,13 @@ private fun EmptyPhotoIcon() {
 @Composable
 private fun StatusChip(status: InspectionStatus) {
     val (backgroundColor, textColor) = when (status) {
-        InspectionStatus.PENDING ->
-            MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.error
-
-        InspectionStatus.IN_PROGRESS ->
-            MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.secondary
-
-        InspectionStatus.COMPLETED ->
-            MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
-
-        InspectionStatus.CANCELLED ->
-            MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+        InspectionStatus.PENDING -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.error
+        InspectionStatus.IN_PROGRESS -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.secondary
+        InspectionStatus.COMPLETED -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
+        InspectionStatus.CANCELLED -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = backgroundColor
-    ) {
+    Surface(shape = RoundedCornerShape(6.dp), color = backgroundColor) {
         Text(
             text = getStatusLabel(status),
             style = MaterialTheme.typography.labelSmall,
@@ -673,14 +443,24 @@ private fun StatusChip(status: InspectionStatus) {
 
 @Composable
 private fun CategoryChip(category: String) {
-    Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = MaterialTheme.colorScheme.tertiaryContainer
-    ) {
+    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
         Text(
             text = category.ifBlank { "Segurança" },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun ActionCountChip(count: Int) {
+    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Text(
+            text = "$count ações",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
@@ -706,34 +486,21 @@ private fun EmptyState(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "Nenhuma inspeção encontrada",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text("Nenhuma inspeção encontrada", style = MaterialTheme.typography.titleMedium)
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Toque no botão + para criar uma nova inspeção",
+            "Toque no botão abaixo para criar uma nova inspeção",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Button(
-            onClick = onNewInspection,
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-            )
-
+        Button(onClick = onNewInspection, shape = RoundedCornerShape(12.dp)) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-
             Text("Nova Inspeção")
         }
     }
