@@ -17,6 +17,7 @@ import com.itextpdf.layout.element.Table
 import com.itextpdf.layout.properties.HorizontalAlignment
 import com.itextpdf.layout.properties.TextAlignment
 import com.rork.safetygembawalk.data.Inspection
+import com.rork.safetygembawalk.data.InspectionActionItem
 import com.rork.safetygembawalk.data.InspectionStatus
 import com.rork.safetygembawalk.data.formattedDate
 import com.rork.safetygembawalk.data.formattedWorkOrderOpenDate
@@ -49,15 +50,21 @@ class PdfReportGenerator(private val context: Context) {
                 Document(pdfDoc, PageSize.A4).use { document ->
                     document.setMargins(28f, 34f, 28f, 34f)
 
-                    inspections.forEachIndexed { index, inspection ->
-                        if (index > 0) document.add(AreaBreak())
+                    var pageNumber = 0
 
-                        addBackground(document)
-                        addHeader(document, inspection)
-                        addInfoBlock(document, inspection)
-                        addRiskActionDescription(document, inspection)
-                        addPhotos(document, inspection)
-                        addFooter(document)
+                    inspections.forEach { inspection ->
+                        inspection.actions.forEach { action ->
+                            if (pageNumber > 0) document.add(AreaBreak())
+
+                            addBackground(document)
+                            addHeader(document, inspection, action, pageNumber + 1)
+                            addInfoBlock(document, inspection, action)
+                            addRiskActionDescription(document, action)
+                            addPhotos(document, action)
+                            addFooter(document)
+
+                            pageNumber++
+                        }
                     }
                 }
             }
@@ -95,7 +102,12 @@ class PdfReportGenerator(private val context: Context) {
         }
     }
 
-    private fun addHeader(document: Document, inspection: Inspection) {
+    private fun addHeader(
+        document: Document,
+        inspection: Inspection,
+        action: InspectionActionItem,
+        number: Int
+    ) {
         val bold = PdfFontFactory.createFont("Helvetica-Bold")
 
         document.add(
@@ -116,14 +128,14 @@ class PdfReportGenerator(private val context: Context) {
                 .setMarginBottom(8f)
         )
 
-        val statusText = when (inspection.status) {
+        val statusText = when (action.status) {
             InspectionStatus.COMPLETED -> "CONCLUÍDO"
             InspectionStatus.IN_PROGRESS -> "EM ANDAMENTO"
             InspectionStatus.PENDING -> "PENDENTE"
             InspectionStatus.CANCELLED -> "CANCELADO"
         }
 
-        val statusColor = when (inspection.status) {
+        val statusColor = when (action.status) {
             InspectionStatus.COMPLETED -> green
             InspectionStatus.IN_PROGRESS -> yellow
             InspectionStatus.PENDING -> red
@@ -137,7 +149,7 @@ class PdfReportGenerator(private val context: Context) {
             Cell()
                 .setBorder(null)
                 .add(
-                    Paragraph(inspection.unsafeCondition.ifBlank { "Inspeção de segurança" })
+                    Paragraph("Ação #$number - ${action.unsafeCondition.ifBlank { inspection.title.ifBlank { "Inspeção de segurança" } }}")
                         .setFont(bold)
                         .setFontSize(12f)
                         .setFontColor(purple)
@@ -160,18 +172,22 @@ class PdfReportGenerator(private val context: Context) {
         document.add(table)
     }
 
-    private fun addInfoBlock(document: Document, inspection: Inspection) {
+    private fun addInfoBlock(
+        document: Document,
+        inspection: Inspection,
+        action: InspectionActionItem
+    ) {
         val table = Table(floatArrayOf(1f, 1f, 1f)).useAllAvailableWidth()
         table.setMarginBottom(8f)
 
         addInfoCell(table, "Data da inspeção", inspection.formattedDate())
-        addInfoCell(table, "Categoria", inspection.category.ifBlank { "Segurança" })
+        addInfoCell(table, "Categoria", action.category.ifBlank { "Segurança" })
         addInfoCell(table, "Local", inspection.location.ifBlank { "-" })
         addInfoCell(table, "Inspetor", inspection.inspectorName.ifBlank { "-" })
 
-        if (inspection.hasWorkOrder) {
-            addInfoCell(table, "Ordem de Serviço", inspection.workOrderNumber ?: "N/A")
-            addInfoCell(table, "Abertura O.S.", inspection.formattedWorkOrderOpenDate())
+        if (action.hasWorkOrder) {
+            addInfoCell(table, "Ordem de Serviço", action.workOrderNumber ?: "N/A")
+            addInfoCell(table, "Abertura O.S.", action.formattedWorkOrderOpenDate())
         } else {
             addInfoCell(table, "Ordem de Serviço", "Não aplicável")
             addInfoCell(table, "Abertura O.S.", "Não aplicável")
@@ -207,14 +223,14 @@ class PdfReportGenerator(private val context: Context) {
         table.addCell(cell)
     }
 
-    private fun addRiskActionDescription(document: Document, inspection: Inspection) {
+    private fun addRiskActionDescription(document: Document, action: InspectionActionItem) {
         val top = Table(floatArrayOf(1f, 1f)).useAllAvailableWidth()
         top.setMarginBottom(0f)
 
         top.addCell(
             executiveBox(
                 title = "RISCO IDENTIFICADO",
-                text = inspection.unsafeCondition.ifBlank { "-" },
+                text = action.unsafeCondition.ifBlank { "-" },
                 height = 68f
             )
         )
@@ -222,7 +238,7 @@ class PdfReportGenerator(private val context: Context) {
         top.addCell(
             executiveBox(
                 title = "AÇÃO IMEDIATA",
-                text = inspection.immediateAction.ifBlank { "-" },
+                text = action.immediateAction.ifBlank { "-" },
                 height = 68f
             )
         )
@@ -250,7 +266,7 @@ class PdfReportGenerator(private val context: Context) {
         )
 
         description.add(
-            Paragraph(inspection.description.ifBlank { "-" })
+            Paragraph(action.description.ifBlank { "-" })
                 .setFont(regular)
                 .setFontSize(11f)
                 .setFontColor(dark)
@@ -293,7 +309,7 @@ class PdfReportGenerator(private val context: Context) {
         return cell
     }
 
-    private fun addPhotos(document: Document, inspection: Inspection) {
+    private fun addPhotos(document: Document, action: InspectionActionItem) {
         val bold = PdfFontFactory.createFont("Helvetica-Bold")
 
         val table = Table(floatArrayOf(1f, 1f)).useAllAvailableWidth()
@@ -314,7 +330,7 @@ class PdfReportGenerator(private val context: Context) {
                 .setMarginBottom(6f)
         )
 
-        inspection.beforePhotoPath?.let {
+        action.beforePhotoPath?.let {
             addImage(before, it)
         } ?: before.add(emptyImageText())
 
@@ -332,7 +348,7 @@ class PdfReportGenerator(private val context: Context) {
                 .setMarginBottom(6f)
         )
 
-        inspection.afterPhotoPath?.let {
+        action.afterPhotoPath?.let {
             addImage(after, it)
         } ?: after.add(emptyImageText())
 
