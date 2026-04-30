@@ -50,12 +50,13 @@ fun AppNavigation() {
         composable("new_inspection") {
             NewInspectionScreen(
                 navController = navController,
-                inspectionId = 0L
+                parentInspectionId = 0L,
+                actionId = 0L
             )
         }
 
         composable(
-            route = "new_inspection/{inspectionId}",
+            route = "add_action/{inspectionId}",
             arguments = listOf(
                 navArgument("inspectionId") { type = NavType.LongType }
             )
@@ -64,7 +65,25 @@ fun AppNavigation() {
 
             NewInspectionScreen(
                 navController = navController,
-                inspectionId = inspectionId
+                parentInspectionId = inspectionId,
+                actionId = 0L
+            )
+        }
+
+        composable(
+            route = "edit_action/{inspectionId}/{actionId}",
+            arguments = listOf(
+                navArgument("inspectionId") { type = NavType.LongType },
+                navArgument("actionId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val inspectionId = backStackEntry.arguments?.getLong("inspectionId") ?: 0L
+            val actionId = backStackEntry.arguments?.getLong("actionId") ?: 0L
+
+            NewInspectionScreen(
+                navController = navController,
+                parentInspectionId = inspectionId,
+                actionId = actionId
             )
         }
 
