@@ -1,6 +1,8 @@
 package com.rork.safetygembawalk.viewmodels
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import com.itextpdf.io.image.ImageDataFactory
 import com.itextpdf.kernel.colors.DeviceRgb
 import com.itextpdf.kernel.font.PdfFontFactory
@@ -21,10 +23,12 @@ import com.rork.safetygembawalk.data.InspectionActionItem
 import com.rork.safetygembawalk.data.InspectionStatus
 import com.rork.safetygembawalk.data.formattedDate
 import com.rork.safetygembawalk.data.formattedWorkOrderOpenDate
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
 
 class PdfReportGenerator(private val context: Context) {
 
@@ -37,6 +41,11 @@ class PdfReportGenerator(private val context: Context) {
     private val borderGray = DeviceRgb(205, 205, 205)
     private val dark = DeviceRgb(30, 41, 59)
     private val lightText = DeviceRgb(140, 140, 140)
+
+    // Ajuste para reduzir o tamanho final do PDF sem mudar o layout.
+    // As fotos entram no PDF já redimensionadas e comprimidas.
+    private val maxPdfImageDimension = 1280
+    private val pdfJpegQuality = 65
 
     fun generateReport(inspections: List<Inspection>): String {
         val fileName = "Safety_Gemba_Walk_${
@@ -369,7 +378,8 @@ class PdfReportGenerator(private val context: Context) {
                 return
             }
 
-            val image = Image(ImageDataFactory.create(imagePath))
+            val compressedImageBytes = compressImageForPdf(file)
+            val image = Image(ImageDataFactory.create(compressedImageBytes))
             val width = image.imageWidth
             val height = image.imageHeight
 
@@ -389,6 +399,42 @@ class PdfReportGenerator(private val context: Context) {
                     .setFontSize(9f)
                     .setTextAlignment(TextAlignment.CENTER)
             )
+        }
+    }
+
+    private fun compressImageForPdf(file: File): ByteArray {
+        val boundsOptions = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeFile(file.absolutePath, boundsOptions)
+
+        val originalWidth = boundsOptions.outWidth
+        val originalHeight = boundsOptions.outHeight
+
+        if (originalWidth <= 0 || originalHeight <= 0) {
+            return file.readBytes()
+        }
+
+        var sampleSize = 1
+        val largestSide = max(originalWidth, originalHeight)
+        while (largestSide / sampleSize > maxPdfImageDimension) {
+            sampleSize *= 2
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+
+        val bitmap = BitmapFactory.decodeFile(file.absolutePath, decodeOptions)
+            ?: return file.readBytes()
+
+        return try {
+            val output = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, pdfJpegQuality, output)
+            output.toByteArray()
+        } finally {
+            bitmap.recycle()
         }
     }
 
