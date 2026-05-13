@@ -1,5 +1,6 @@
 package com.rork.safetygembawalk.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
@@ -29,7 +31,11 @@ import com.rork.safetygembawalk.viewmodels.AuthAction
 import com.rork.safetygembawalk.viewmodels.AuthViewModel
 import com.rork.safetygembawalk.viewmodels.HomeAction
 import com.rork.safetygembawalk.viewmodels.HomeViewModel
+import com.rork.safetygembawalk.viewmodels.PdfReportGenerator
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,6 +50,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val authState by authViewModel.authState.collectAsState()
+    val context = LocalContext.current
 
     var showFilterMenu by remember { mutableStateOf(false) }
     var showUserMenu by remember { mutableStateOf(false) }
@@ -186,7 +193,8 @@ fun HomeScreen(
                         InspectionCard(
                             inspection = inspection,
                             onClick = { navController.navigate("inspection_detail/${inspection.id}") },
-                            onDelete = { inspectionToDelete = inspection }
+                            onDelete = { inspectionToDelete = inspection },
+                            onPdfClick = { sendSingleInspectionPdf(context, inspection) }
                         )
                     }
                 }
@@ -215,6 +223,44 @@ fun HomeScreen(
                 }
             }
         )
+    }
+}
+
+private fun sendSingleInspectionPdf(
+    context: android.content.Context,
+    inspection: Inspection
+) {
+    try {
+        val pdfGenerator = PdfReportGenerator(context)
+        val filePath = pdfGenerator.generateReport(listOf(inspection))
+        val file = File(filePath)
+
+        if (!file.exists()) return
+
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        val currentDate = dateFormat.format(Date())
+
+        val emailIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "message/rfc822"
+            putExtra(Intent.EXTRA_SUBJECT, "Relatório Safety Gemba Walk - $currentDate")
+            putExtra(
+                Intent.EXTRA_TEXT,
+                "Segue em anexo o relatório individual da inspeção Safety Gemba Walk.\n\n" +
+                    "Data de geração: $currentDate\n" +
+                    "Total de ações no relatório: ${inspection.actions.size}"
+            )
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        context.startActivity(Intent.createChooser(emailIntent, "Enviar relatório via:"))
+    } catch (_: Exception) {
     }
 }
 
@@ -290,7 +336,8 @@ private fun ActionButton(
 private fun InspectionCard(
     inspection: Inspection,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onPdfClick: () -> Unit
 ) {
     val firstAction = inspection.actions.firstOrNull()
     val photoPath = firstAction?.beforePhotoPath
@@ -353,8 +400,18 @@ private fun InspectionCard(
                         )
                     }
 
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error)
+                    Row {
+                        IconButton(onClick = onPdfClick) {
+                            Icon(
+                                Icons.Default.PictureAsPdf,
+                                contentDescription = "Gerar PDF desta inspeção",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        IconButton(onClick = onDelete) {
+                            Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
 
