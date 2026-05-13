@@ -102,9 +102,13 @@ class PdfReportGenerator(private val context: Context) {
             val pageNumber = pdfDoc.numberOfPages
             val pageSize = pdfDoc.getPage(pageNumber).pageSize
 
+            // Mantém o fundo/identidade visual como elemento fixo da página.
+            // Pequeno ajuste de escala/posição para empurrar o logo do fundo
+            // para mais perto do canto inferior direito, sem alterar o layout do conteúdo.
+            val bleed = 24f
             val bg = Image(ImageDataFactory.create(bytes))
-                .scaleAbsolute(pageSize.width, pageSize.height)
-                .setFixedPosition(pageNumber, 0f, 0f)
+                .scaleAbsolute(pageSize.width + bleed, pageSize.height + bleed)
+                .setFixedPosition(pageNumber, -bleed / 2f, -bleed / 2f)
 
             document.add(bg)
         } catch (_: Exception) {
