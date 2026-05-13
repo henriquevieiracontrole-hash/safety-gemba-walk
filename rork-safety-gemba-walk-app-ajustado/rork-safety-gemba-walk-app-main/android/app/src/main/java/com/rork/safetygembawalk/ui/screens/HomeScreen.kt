@@ -162,7 +162,7 @@ fun HomeScreen(
 
             QuickActions(
                 onPdfClick = { navController.navigate("reports/pdf") },
-                onPptClick = { navController.navigate("reports/ppt") },
+                onNewInspectionClick = { navController.navigate("new_inspection") },
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
 
@@ -252,12 +252,12 @@ private fun SummaryCard(title: String, count: Int, color: Color, modifier: Modif
 @Composable
 private fun QuickActions(
     onPdfClick: () -> Unit,
-    onPptClick: () -> Unit,
+    onNewInspectionClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         ActionButton(Icons.Default.PictureAsPdf, "PDF", onPdfClick, Modifier.weight(1f))
-        ActionButton(Icons.Default.Slideshow, "PPT", onPptClick, Modifier.weight(1f))
+        ActionButton(Icons.Default.Add, "Nova Inspeção", onNewInspectionClick, Modifier.weight(1f))
     }
 }
 
