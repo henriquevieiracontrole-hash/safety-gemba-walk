@@ -101,7 +101,7 @@ fun ReportsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        if (reportType == "pdf") "Relatório PDF" else "Apresentação PPT",
+                        "Relatório PDF",
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -130,7 +130,7 @@ fun ReportsScreen(
                 .padding(16.dp)
         ) {
             // Header Card
-            HeaderCard(reportType = reportType)
+            HeaderCard(reportType = "pdf")
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -285,22 +285,14 @@ fun ReportsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Generate Button
-            if (reportType == "pdf") {
-                GeneratePdfButton(
-                    isLoading = uiState.isLoading,
-                    isGenerated = uiState.pdfGenerated,
-                    onGenerate = { viewModel.onAction(ReportAction.GeneratePdf) }
-                )
-            } else {
-                GeneratePptButton(
-                    isLoading = uiState.isLoading,
-                    isGenerated = uiState.pptGenerated,
-                    onGenerate = { viewModel.onAction(ReportAction.GeneratePpt) }
-                )
-            }
+            GeneratePdfButton(
+                isLoading = uiState.isLoading,
+                isGenerated = uiState.pdfGenerated,
+                onGenerate = { viewModel.onAction(ReportAction.GeneratePdf) }
+            )
 
             // Email Button
-            if (uiState.pdfGenerated || uiState.pptGenerated) {
+            if (uiState.pdfGenerated) {
                 Spacer(modifier = Modifier.height(16.dp))
                 EmailButton(
                     onSend = { viewModel.onAction(ReportAction.SendEmail) }
@@ -552,41 +544,6 @@ private fun GeneratePdfButton(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text("Gerar Relatório PDF")
-        }
-    }
-}
-
-@Composable
-private fun GeneratePptButton(
-    isLoading: Boolean,
-    isGenerated: Boolean,
-    onGenerate: () -> Unit
-) {
-    Button(
-        onClick = onGenerate,
-        modifier = Modifier.fillMaxWidth(),
-        enabled = !isLoading,
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                color = MaterialTheme.colorScheme.onPrimary
-            )
-        } else if (isGenerated) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("PPT Gerado!")
-        } else {
-            Icon(
-                imageVector = Icons.Default.Slideshow,
-                contentDescription = null
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Gerar Apresentação PPT")
         }
     }
 }
