@@ -54,6 +54,8 @@ sealed interface InspectionAction {
     data class UpdateStatus(val value: InspectionStatus) : InspectionAction
     data class SetBeforePhoto(val uri: Uri) : InspectionAction
     data class SetAfterPhoto(val uri: Uri) : InspectionAction
+    data object RemoveBeforePhoto : InspectionAction
+    data object RemoveAfterPhoto : InspectionAction
     data object SaveInspection : InspectionAction
     data class LoadInspection(val id: Long) : InspectionAction
     data class StartNewAction(val inspectionId: Long) : InspectionAction
@@ -135,6 +137,20 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
                 )
             }
 
+            is InspectionAction.RemoveBeforePhoto -> {
+                _formState.value = _formState.value.copy(
+                    beforePhotoUri = null,
+                    beforePhotoPath = null
+                )
+            }
+
+            is InspectionAction.RemoveAfterPhoto -> {
+                _formState.value = _formState.value.copy(
+                    afterPhotoUri = null,
+                    afterPhotoPath = null
+                )
+            }
+
             is InspectionAction.SaveInspection -> saveInspection()
             is InspectionAction.LoadInspection -> loadInspection(action.id)
             is InspectionAction.StartNewAction -> startNewAction(action.inspectionId)
@@ -208,11 +224,6 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
 
         if (state.unsafeCondition.isBlank() || state.description.isBlank()) {
             _formState.value = state.copy(errorMessage = "Preencha os campos obrigatórios")
-            return
-        }
-
-        if (state.beforePhotoPath == null) {
-            _formState.value = state.copy(errorMessage = "Tire uma foto da condição insegura")
             return
         }
 
