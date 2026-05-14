@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Place
@@ -672,6 +673,9 @@ LaunchedEffect(parentInspectionId, actionId) {
                         isAfterPhoto = false
                         galleryLauncher.launch("image/*")
                     },
+                    onRemovePhoto = {
+                        viewModel.onAction(InspectionAction.RemoveBeforePhoto)
+                    },
                     modifier = Modifier.weight(1f)
                 )
 
@@ -695,6 +699,9 @@ LaunchedEffect(parentInspectionId, actionId) {
                     onGalleryClick = {
                         isAfterPhoto = true
                         galleryLauncher.launch("image/*")
+                    },
+                    onRemovePhoto = {
+                        viewModel.onAction(InspectionAction.RemoveAfterPhoto)
                     },
                     modifier = Modifier.weight(1f),
                     isRequired = formState.isImmediateAction
@@ -737,6 +744,7 @@ private fun PhotoCard(
     onPhotoClick: () -> Unit,
     onCameraClick: () -> Unit,
     onGalleryClick: () -> Unit,
+    onRemovePhoto: () -> Unit,
     modifier: Modifier = Modifier,
     isRequired: Boolean = false
 ) {
@@ -815,6 +823,18 @@ private fun PhotoCard(
                                 imageVector = Icons.Default.PhotoLibrary,
                                 contentDescription = "Trocar foto",
                                 modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onRemovePhoto,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Excluir foto",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.error
                             )
                         }
                     }
