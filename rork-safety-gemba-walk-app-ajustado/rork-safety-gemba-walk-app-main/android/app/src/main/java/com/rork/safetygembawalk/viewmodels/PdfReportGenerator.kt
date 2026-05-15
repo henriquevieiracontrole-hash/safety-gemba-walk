@@ -3,6 +3,8 @@ package com.rork.safetygembawalk.viewmodels
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import com.itextpdf.io.image.ImageDataFactory
 import com.itextpdf.kernel.colors.DeviceRgb
 import com.itextpdf.kernel.font.PdfFontFactory
@@ -433,12 +435,55 @@ class PdfReportGenerator(private val context: Context) {
         val bitmap = BitmapFactory.decodeFile(file.absolutePath, decodeOptions)
             ?: return file.readBytes()
 
+        val rotatedBitmap = rotateBitmapIfNeeded(bitmap, file.absolutePath)
+
         return try {
             val output = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, pdfJpegQuality, output)
+            rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, pdfJpegQuality, output)
             output.toByteArray()
         } finally {
+            if (rotatedBitmap != bitmap) {
+                rotatedBitmap.recycle()
+            }
             bitmap.recycle()
+        }
+    }
+
+
+    private fun rotateBitmapIfNeeded(bitmap: Bitmap, imagePath: String): Bitmap {
+        return try {
+            val exif = ExifInterface(imagePath)
+            val orientation = exif.getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+
+            val rotation = when (orientation) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
+
+            if (rotation == 0f) {
+                bitmap
+            } else {
+                val matrix = Matrix().apply {
+                    postRotate(rotation)
+                }
+
+                Bitmap.createBitmap(
+                    bitmap,
+                    0,
+                    0,
+                    bitmap.width,
+                    bitmap.height,
+                    matrix,
+                    true
+                )
+            }
+        } catch (_: Exception) {
+            bitmap
         }
     }
 
