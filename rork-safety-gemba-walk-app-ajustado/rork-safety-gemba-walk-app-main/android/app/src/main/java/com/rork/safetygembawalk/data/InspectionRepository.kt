@@ -12,6 +12,7 @@ import kotlinx.serialization.json.Json
 
 class InspectionRepository private constructor(context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
+    private val firebaseSyncService = FirebaseSyncService()
     private val prefs: SharedPreferences =
         context.getSharedPreferences("inspections", Context.MODE_PRIVATE)
 
@@ -69,6 +70,11 @@ class InspectionRepository private constructor(context: Context) {
 
         _inspections.value = currentList
         saveInspections(currentList)
+        try {
+    firebaseSyncService.syncInspection(newInspection)
+} catch (e: Exception) {
+    e.printStackTrace()
+}
 
         return newId
     }
