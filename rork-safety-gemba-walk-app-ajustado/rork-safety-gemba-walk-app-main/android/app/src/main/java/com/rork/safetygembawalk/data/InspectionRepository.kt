@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 class InspectionRepository private constructor(context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
     private val firebaseSyncService = FirebaseSyncService()
+
     private val prefs: SharedPreferences =
         context.getSharedPreferences("inspections", Context.MODE_PRIVATE)
 
@@ -36,6 +37,14 @@ class InspectionRepository private constructor(context: Context) {
 
     private fun saveInspections(list: List<Inspection>) {
         prefs.edit().putString(inspectionsKey, json.encodeToString(list)).apply()
+    }
+
+    private fun syncToFirebase(inspection: Inspection) {
+        try {
+            firebaseSyncService.syncInspection(inspection)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun getAllInspections(): Flow<List<Inspection>> = inspections
@@ -68,17 +77,12 @@ class InspectionRepository private constructor(context: Context) {
             currentList.add(0, newInspection)
         }
 
-_inspections.value = currentList
-saveInspections(currentList)
+        _inspections.value = currentList
+        saveInspections(currentList)
+        syncToFirebase(newInspection)
 
-try {
-    firebaseSyncService.syncInspection(newInspection)
-} catch (e: Exception) {
-    e.printStackTrace()
-}
-
-return newId
-}
+        return newId
+    }
 
     fun addAction(
         inspectionId: Long,
@@ -95,13 +99,16 @@ return newId
                 updatedAt = System.currentTimeMillis()
             )
 
-            currentList[index] = inspection.copy(
+            val updatedInspection = inspection.copy(
                 actions = inspection.actions + newAction,
                 updatedAt = System.currentTimeMillis()
             )
 
+            currentList[index] = updatedInspection
+
             _inspections.value = currentList
             saveInspections(currentList)
+            syncToFirebase(updatedInspection)
         }
     }
 
@@ -123,13 +130,16 @@ return newId
                 }
             }
 
-            currentList[index] = inspection.copy(
+            val updatedInspection = inspection.copy(
                 actions = updatedActions,
                 updatedAt = System.currentTimeMillis()
             )
 
+            currentList[index] = updatedInspection
+
             _inspections.value = currentList
             saveInspections(currentList)
+            syncToFirebase(updatedInspection)
         }
     }
 
@@ -143,38 +153,35 @@ return newId
         if (index >= 0) {
             val inspection = currentList[index]
 
-            currentList[index] = inspection.copy(
+            val updatedInspection = inspection.copy(
                 actions = inspection.actions.filterNot { it.id == actionId },
                 updatedAt = System.currentTimeMillis()
             )
 
+            currentList[index] = updatedInspection
+
             _inspections.value = currentList
             saveInspections(currentList)
+            syncToFirebase(updatedInspection)
         }
     }
 
- fun updateInspection(inspection: Inspection) {
-    val currentList = _inspections.value.toMutableList()
-    val index = currentList.indexOfFirst { it.id == inspection.id }
+    fun updateInspection(inspection: Inspection) {
+        val currentList = _inspections.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == inspection.id }
 
-    if (index >= 0) {
+        if (index >= 0) {
+            val updatedInspection = inspection.copy(
+                updatedAt = System.currentTimeMillis()
+            )
 
-        val updatedInspection = inspection.copy(
-            updatedAt = System.currentTimeMillis()
-        )
+            currentList[index] = updatedInspection
 
-        currentList[index] = updatedInspection
-
-        _inspections.value = currentList
-        saveInspections(currentList)
-
-        try {
-            firebaseSyncService.syncInspection(updatedInspection)
-        } catch (e: Exception) {
-            e.printStackTrace()
+            _inspections.value = currentList
+            saveInspections(currentList)
+            syncToFirebase(updatedInspection)
         }
     }
-}
 
     fun deleteInspectionById(id: Long) {
         val currentList = _inspections.value.toMutableList()
