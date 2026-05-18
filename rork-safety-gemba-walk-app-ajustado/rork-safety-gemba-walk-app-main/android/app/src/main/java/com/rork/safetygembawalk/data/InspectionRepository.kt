@@ -68,16 +68,17 @@ class InspectionRepository private constructor(context: Context) {
             currentList.add(0, newInspection)
         }
 
-        _inspections.value = currentList
-        saveInspections(currentList)
-        try {
+_inspections.value = currentList
+saveInspections(currentList)
+
+try {
     firebaseSyncService.syncInspection(newInspection)
 } catch (e: Exception) {
     e.printStackTrace()
 }
 
-        return newId
-    }
+return newId
+}
 
     fun addAction(
         inspectionId: Long,
