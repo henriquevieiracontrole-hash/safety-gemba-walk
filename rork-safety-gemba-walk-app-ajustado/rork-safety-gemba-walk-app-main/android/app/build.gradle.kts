@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -58,32 +59,35 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
+
     implementation(libs.kotlinx.serialization.json)
+
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.android)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.json)
+
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+
     implementation(libs.koin.androidx.compose)
-    
-    // DataStore for persistence
+
     implementation(libs.datastore.preferences)
-    
-    // CameraX
+
     implementation(libs.camera.core)
     implementation(libs.camera.camera2)
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
-    
-    // Permissions
+
     implementation(libs.accompanist.permissions)
-    
-    // PDF
+
     implementation(libs.itext.core)
-    
-    // PPT (Apache POI)
     implementation(libs.poi.ooxml)
-    
+
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.storage.ktx)
+
     debugImplementation(libs.androidx.ui.tooling)
 }
