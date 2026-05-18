@@ -153,19 +153,28 @@ return newId
         }
     }
 
-    fun updateInspection(inspection: Inspection) {
-        val currentList = _inspections.value.toMutableList()
-        val index = currentList.indexOfFirst { it.id == inspection.id }
+ fun updateInspection(inspection: Inspection) {
+    val currentList = _inspections.value.toMutableList()
+    val index = currentList.indexOfFirst { it.id == inspection.id }
 
-        if (index >= 0) {
-            currentList[index] = inspection.copy(
-                updatedAt = System.currentTimeMillis()
-            )
+    if (index >= 0) {
 
-            _inspections.value = currentList
-            saveInspections(currentList)
+        val updatedInspection = inspection.copy(
+            updatedAt = System.currentTimeMillis()
+        )
+
+        currentList[index] = updatedInspection
+
+        _inspections.value = currentList
+        saveInspections(currentList)
+
+        try {
+            firebaseSyncService.syncInspection(updatedInspection)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
+}
 
     fun deleteInspectionById(id: Long) {
         val currentList = _inspections.value.toMutableList()
