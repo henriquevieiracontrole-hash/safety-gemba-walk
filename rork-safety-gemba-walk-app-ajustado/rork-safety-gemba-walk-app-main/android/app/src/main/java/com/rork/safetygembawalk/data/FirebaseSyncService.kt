@@ -1,13 +1,13 @@
 package com.rork.safetygembawalk.data
 
 import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.tasks.await
+
 
 class FirebaseSyncService {
 
     private val db = FirebaseFirestore.getInstance()
 
-    suspend fun syncInspection(inspection: Inspection) {
+    fun syncInspection(inspection: Inspection) {
         val data = hashMapOf(
             "id" to inspection.id,
             "title" to inspection.title,
@@ -39,8 +39,7 @@ class FirebaseSyncService {
         )
 
         db.collection("inspections")
-            .document(inspection.id.toString())
-            .set(data)
-            .await()
+    .document(inspection.id.toString())
+    .set(data)
     }
 }
