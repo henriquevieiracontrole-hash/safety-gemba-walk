@@ -1,11 +1,14 @@
 package com.rork.safetygembawalk.data
 
+import android.net.Uri
 import com.google.firebase.firestore.FirebaseFirestore
-
+import com.google.firebase.storage.FirebaseStorage
+import java.io.File
 
 class FirebaseSyncService {
 
     private val db = FirebaseFirestore.getInstance()
+    private val storage = FirebaseStorage.getInstance()
 
     fun syncInspection(inspection: Inspection) {
         val data = hashMapOf(
@@ -39,7 +42,41 @@ class FirebaseSyncService {
         )
 
         db.collection("inspections")
-    .document(inspection.id.toString())
-    .set(data)
+            .document(inspection.id.toString())
+            .set(data)
+    }
+
+    fun uploadInspectionPdf(
+        inspection: Inspection,
+        pdfFile: File
+    ) {
+        if (!pdfFile.exists()) return
+
+        val pdfRef = storage.reference
+            .child("inspection_pdfs")
+            .child(inspection.id.toString())
+            .child("relatorio.pdf")
+
+        pdfRef.putFile(Uri.fromFile(pdfFile))
+            .addOnSuccessListener {
+                pdfRef.downloadUrl
+                    .addOnSuccessListener { downloadUri ->
+                        db.collection("inspections")
+                            .document(inspection.id.toString())
+                            .update(
+                                mapOf(
+                                    "pdfUrl" to downloadUri.toString(),
+                                    "pdfFileName" to pdfFile.name,
+                                    "pdfUpdatedAt" to System.currentTimeMillis()
+                                )
+                            )
+                    }
+                    .addOnFailureListener { error ->
+                        error.printStackTrace()
+                    }
+            }
+            .addOnFailureListener { error ->
+                error.printStackTrace()
+            }
     }
 }
