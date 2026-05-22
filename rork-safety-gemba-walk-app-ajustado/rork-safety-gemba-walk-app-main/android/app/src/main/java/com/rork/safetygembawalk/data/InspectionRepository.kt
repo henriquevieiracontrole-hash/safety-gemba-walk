@@ -9,13 +9,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.rork.safetygembawalk.viewmodels.PdfReportGenerator
+import java.io.File
 
 class InspectionRepository private constructor(context: Context) {
+    private val appContext = context.applicationContext
     private val json = Json { ignoreUnknownKeys = true }
     private val firebaseSyncService = FirebaseSyncService()
 
     private val prefs: SharedPreferences =
-        context.getSharedPreferences("inspections", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences("inspections", Context.MODE_PRIVATE)
 
     private val inspectionsKey = "inspections_list"
 
@@ -45,6 +48,32 @@ class InspectionRepository private constructor(context: Context) {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun syncPdfToFirebase(inspection: Inspection) {
+        if (inspection.actions.isEmpty()) return
+
+        Thread {
+            try {
+                val pdfGenerator = PdfReportGenerator(appContext)
+                val filePath = pdfGenerator.generateReport(listOf(inspection))
+                val file = File(filePath)
+
+                if (file.exists()) {
+                    firebaseSyncService.uploadInspectionPdf(
+                        inspection = inspection,
+                        pdfFile = file
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }.start()
+    }
+
+    private fun syncInspectionAndPdf(inspection: Inspection) {
+        syncToFirebase(inspection)
+        syncPdfToFirebase(inspection)
     }
 
     fun getAllInspections(): Flow<List<Inspection>> = inspections
@@ -79,7 +108,7 @@ class InspectionRepository private constructor(context: Context) {
 
         _inspections.value = currentList
         saveInspections(currentList)
-        syncToFirebase(newInspection)
+        syncInspectionAndPdf(newInspection)
 
         return newId
     }
@@ -108,7 +137,7 @@ class InspectionRepository private constructor(context: Context) {
 
             _inspections.value = currentList
             saveInspections(currentList)
-            syncToFirebase(updatedInspection)
+            syncInspectionAndPdf(updatedInspection)
         }
     }
 
@@ -139,7 +168,7 @@ class InspectionRepository private constructor(context: Context) {
 
             _inspections.value = currentList
             saveInspections(currentList)
-            syncToFirebase(updatedInspection)
+            syncInspectionAndPdf(updatedInspection)
         }
     }
 
@@ -162,7 +191,7 @@ class InspectionRepository private constructor(context: Context) {
 
             _inspections.value = currentList
             saveInspections(currentList)
-            syncToFirebase(updatedInspection)
+            syncInspectionAndPdf(updatedInspection)
         }
     }
 
@@ -179,7 +208,7 @@ class InspectionRepository private constructor(context: Context) {
 
             _inspections.value = currentList
             saveInspections(currentList)
-            syncToFirebase(updatedInspection)
+            syncInspectionAndPdf(updatedInspection)
         }
     }
 
