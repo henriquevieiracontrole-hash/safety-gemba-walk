@@ -268,19 +268,45 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
                         InspectionStatus.IN_PROGRESS
                     }
 
-                val updatedInspection = existing.copy(
-                    title = existing.title.ifBlank { state.unsafeCondition },
-                    location = state.location,
-                    inspectorName = state.inspectorName,
-                    status = updatedStatus
-                )
-
-                repository.updateInspection(updatedInspection)
-
                 if (currentActionId == 0L) {
+
                     repository.addAction(currentInspectionId, actionItem)
+
+                    val refreshedInspection =
+                        repository.getInspectionById(currentInspectionId)
+
+                    if (refreshedInspection != null) {
+                        repository.updateInspection(
+                            refreshedInspection.copy(
+                                title = refreshedInspection.title.ifBlank {
+                                    state.unsafeCondition
+                                },
+                                location = state.location,
+                                inspectorName = state.inspectorName,
+                                status = updatedStatus
+                            )
+                        )
+                    }
+
                 } else {
+
                     repository.updateAction(currentInspectionId, actionItem)
+
+                    val refreshedInspection =
+                        repository.getInspectionById(currentInspectionId)
+
+                    if (refreshedInspection != null) {
+                        repository.updateInspection(
+                            refreshedInspection.copy(
+                                title = refreshedInspection.title.ifBlank {
+                                    state.unsafeCondition
+                                },
+                                location = state.location,
+                                inspectorName = state.inspectorName,
+                                status = updatedStatus
+                            )
+                        )
+                    }
                 }
             }
         }
