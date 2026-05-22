@@ -169,10 +169,19 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             QuickActions(
-                onPdfClick = { navController.navigate("reports/pdf") },
-                onNewInspectionClick = { navController.navigate("new_inspection") },
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
+    onPdfClick = {
+        if (authState.user?.isAdmin == true) {
+            navController.navigate("admin_dashboard")
+        } else {
+            navController.navigate("reports/pdf")
+        }
+    },
+    onNewInspectionClick = {
+        navController.navigate("new_inspection")
+    },
+    modifier = Modifier.padding(horizontal = 16.dp),
+    isAdmin = authState.user?.isAdmin == true
+)
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -303,40 +312,40 @@ private fun SummaryCard(title: String, count: Int, color: Color, modifier: Modif
     }
 }
 
+
 @Composable
 private fun QuickActions(
     onPdfClick: () -> Unit,
     onNewInspectionClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isAdmin: Boolean = false
 ) {
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        ActionButton(Icons.Default.PictureAsPdf, "PDF", onPdfClick, Modifier.weight(1f))
-        ActionButton(Icons.Default.Add, "Nova Inspeção", onNewInspectionClick, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun ActionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-        }
+
+        ActionButton(
+            icon = if (isAdmin)
+                Icons.Default.Dashboard
+            else
+                Icons.Default.PictureAsPdf,
+
+            label = if (isAdmin)
+                "Dashboard"
+            else
+                "PDF",
+
+            onClick = onPdfClick,
+            modifier = Modifier.weight(1f)
+        )
+
+        ActionButton(
+            icon = Icons.Default.Add,
+            label = "Nova Inspeção",
+            onClick = onNewInspectionClick,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
