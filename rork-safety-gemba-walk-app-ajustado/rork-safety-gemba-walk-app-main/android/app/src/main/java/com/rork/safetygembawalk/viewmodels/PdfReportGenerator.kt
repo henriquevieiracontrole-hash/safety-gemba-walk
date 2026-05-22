@@ -46,8 +46,8 @@ class PdfReportGenerator(private val context: Context) {
 
     // Ajuste para reduzir o tamanho final do PDF sem mudar o layout.
     // As fotos entram no PDF já redimensionadas e comprimidas.
-    private val maxPdfImageDimension = 1280
-    private val pdfJpegQuality = 65
+    private val maxPdfImageDimension = 900
+    private val pdfJpegQuality = 45
 
     fun generateReport(inspections: List<Inspection>): String {
         val fileName = "Safety_Gemba_Walk_${
