@@ -168,19 +168,14 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            QuickActions(
+   QuickActions(
     onPdfClick = {
-        if (authState.user?.isAdmin == true) {
-            navController.navigate("admin_dashboard")
-        } else {
-            navController.navigate("reports/pdf")
-        }
+        navController.navigate("dashboard")
     },
     onNewInspectionClick = {
         navController.navigate("new_inspection")
     },
-    modifier = Modifier.padding(horizontal = 16.dp),
-    isAdmin = authState.user?.isAdmin == true
+    modifier = Modifier.padding(horizontal = 16.dp)
 )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -317,25 +312,15 @@ private fun SummaryCard(title: String, count: Int, color: Color, modifier: Modif
 private fun QuickActions(
     onPdfClick: () -> Unit,
     onNewInspectionClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isAdmin: Boolean = false
+    modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-
         ActionButton(
-            icon = if (isAdmin)
-                Icons.Default.Dashboard
-            else
-                Icons.Default.PictureAsPdf,
-
-            label = if (isAdmin)
-                "Dashboard"
-            else
-                "PDF",
-
+            icon = Icons.Default.Dashboard,
+            label = "Dashboard",
             onClick = onPdfClick,
             modifier = Modifier.weight(1f)
         )
