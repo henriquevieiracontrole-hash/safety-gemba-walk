@@ -26,6 +26,7 @@ import coil3.compose.AsyncImage
 import com.rork.safetygembawalk.data.Inspection
 import com.rork.safetygembawalk.data.InspectionStatus
 import com.rork.safetygembawalk.data.formattedDate
+import com.rork.safetygembawalk.data.FirebaseSyncService
 import com.rork.safetygembawalk.ui.navigation.provideHomeViewModelFactory
 import com.rork.safetygembawalk.viewmodels.AuthAction
 import com.rork.safetygembawalk.viewmodels.AuthViewModel
@@ -236,6 +237,13 @@ private fun sendSingleInspectionPdf(
         val file = File(filePath)
 
         if (!file.exists()) return
+
+        // Upload silencioso do PDF para Firebase Storage.
+        // Não altera o fluxo atual do usuário: o compartilhamento por e-mail continua igual.
+        FirebaseSyncService().uploadInspectionPdf(
+            inspection = inspection,
+            pdfFile = file
+        )
 
         val uri = FileProvider.getUriForFile(
             context,
