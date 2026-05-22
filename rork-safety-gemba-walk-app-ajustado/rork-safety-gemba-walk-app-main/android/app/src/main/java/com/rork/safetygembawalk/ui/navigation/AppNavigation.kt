@@ -22,7 +22,7 @@ import com.rork.safetygembawalk.viewmodels.AuthViewModel
 import com.rork.safetygembawalk.viewmodels.HomeViewModel
 import com.rork.safetygembawalk.viewmodels.InspectionViewModel
 import com.rork.safetygembawalk.viewmodels.ReportViewModel
-
+import com.rork.safetygembawalk.ui.screens.DashboardScreen
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
@@ -99,7 +99,11 @@ fun AppNavigation() {
                 inspectionId = inspectionId
             )
         }
-
+composable("dashboard") {
+    DashboardScreen(
+        navController = navController
+    )
+}
         composable(
             route = "reports/{reportType}",
             arguments = listOf(
