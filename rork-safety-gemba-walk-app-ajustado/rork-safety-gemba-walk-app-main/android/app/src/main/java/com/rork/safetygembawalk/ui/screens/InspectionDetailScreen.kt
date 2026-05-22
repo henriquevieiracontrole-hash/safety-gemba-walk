@@ -65,95 +65,112 @@ fun InspectionDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
         ) {
-            Text(
-                "Inspeção #${inspection!!.id}",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text("Local: ${inspection!!.location}")
-            Text("Inspetor: ${inspection!!.inspectorName}")
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = {
-                    navController.navigate("add_action/${inspection!!.id}")
-                },
-                modifier = Modifier.fillMaxWidth()
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp)
             ) {
-                Text("➕ Adicionar nova ação")
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Inspeção #${inspection!!.id}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
 
-            Text(
-                "AÇÕES (${inspection!!.actions.size})",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+                Spacer(modifier = Modifier.height(6.dp))
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Text("Local: ${inspection!!.location}")
+                Text("Inspetor: ${inspection!!.inspectorName}")
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(inspection!!.actions) { action ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        elevation = CardDefaults.cardElevation(3.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        navController.navigate("add_action/${inspection!!.id}")
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("➕ Adicionar nova ação")
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    "AÇÕES (${inspection!!.actions.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(inspection!!.actions) { action ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            elevation = CardDefaults.cardElevation(3.dp)
                         ) {
-                            Text(
-                                action.unsafeCondition,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Text(
-                                action.description,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Button(
-                                onClick = {
-                                    navController.navigate(
-                                        "edit_action/${inspection!!.id}/${action.id}"
-                                    )
-                                }
+                            Column(
+                                modifier = Modifier.padding(14.dp)
                             ) {
-                                Icon(Icons.Default.Edit, null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Editar")
+                                Text(
+                                    action.unsafeCondition,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    action.description,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Button(
+                                    onClick = {
+                                        navController.navigate(
+                                            "edit_action/${inspection!!.id}/${action.id}"
+                                        )
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Edit, null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Editar")
+                                }
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = {
-                    repository.updateInspection(
-                        inspection!!.copy(
-                            status = InspectionStatus.COMPLETED
-                        )
-                    )
-                    navController.popBackStack()
-                },
-                modifier = Modifier.fillMaxWidth()
+            Surface(
+                tonalElevation = 6.dp,
+                shadowElevation = 6.dp
             ) {
-                Text("✅ Fechar inspeção")
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            repository.updateInspection(
+                                inspection!!.copy(
+                                    status = InspectionStatus.COMPLETED
+                                )
+                            )
+                            navController.popBackStack()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("✅ Fechar inspeção")
+                    }
+                }
             }
         }
     }
