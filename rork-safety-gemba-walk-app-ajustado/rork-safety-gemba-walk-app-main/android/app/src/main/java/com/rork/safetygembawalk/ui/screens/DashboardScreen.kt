@@ -183,13 +183,17 @@ fun DashboardScreen(
                 }
             } else {
                 items(pendingActions.sortedByDescending { it.action.createdAt }) { row ->
-                    PendingActionCard(row)
+                    PendingActionCard(
+                        row = row,
+                        onClick = {
+                            navController.navigate("inspection_detail/${row.inspection.id}")
+                        }
+                    )
                 }
             }
         }
     }
 }
-
 @Composable
 private fun DashboardCard(
     title: String,
@@ -216,7 +220,10 @@ private fun DashboardCard(
 }
 
 @Composable
-private fun PendingActionCard(row: DashboardActionRow) {
+private fun PendingActionCard(
+    row: DashboardActionRow,
+    onClick: () -> Unit
+) {
     val action = row.action
     val inspection = row.inspection
 
@@ -224,11 +231,13 @@ private fun PendingActionCard(row: DashboardActionRow) {
     val osDays = action.workOrderOpenDate?.let { daysSince(it) }
 
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
+
             Text(
                 inspection.title.ifBlank { "Inspeção ${inspection.id}" },
                 fontWeight = FontWeight.Bold,
