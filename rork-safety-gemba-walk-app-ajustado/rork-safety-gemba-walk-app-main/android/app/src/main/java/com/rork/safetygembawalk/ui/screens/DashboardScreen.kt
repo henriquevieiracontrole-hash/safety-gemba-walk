@@ -30,6 +30,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -87,6 +88,7 @@ fun DashboardScreen(
     val isAdmin = currentUser?.isAdmin == true
 
     var selectedFilter by remember { mutableStateOf(DashboardFilter.ALL) }
+    var searchQuery by remember { mutableStateOf("") }
 
     val visibleInspections =
         if (isAdmin) {
@@ -138,13 +140,29 @@ fun DashboardScreen(
             DashboardFilter.PENDING -> pendingActions
             DashboardFilter.WITH_OS -> pendingWithOs
             DashboardFilter.CRITICAL -> criticalActions
-        }.sortedWith(
-            compareByDescending<DashboardActionRow> {
-                isCriticalAction(it)
-            }.thenByDescending {
-                daysSince(it.action.createdAt)
+        }
+            .filter { row ->
+                val search = searchQuery.trim()
+
+                if (search.isBlank()) {
+                    true
+                } else {
+                    row.inspection.title.contains(search, ignoreCase = true) ||
+                        row.inspection.location.contains(search, ignoreCase = true) ||
+                        row.inspection.inspectorName.contains(search, ignoreCase = true) ||
+                        row.action.unsafeCondition.contains(search, ignoreCase = true) ||
+                        row.action.description.contains(search, ignoreCase = true) ||
+                        row.action.immediateAction.contains(search, ignoreCase = true) ||
+                        (row.action.workOrderNumber ?: "").contains(search, ignoreCase = true)
+                }
             }
-        )
+            .sortedWith(
+                compareByDescending<DashboardActionRow> {
+                    isCriticalAction(it)
+                }.thenByDescending {
+                    daysSince(it.action.createdAt)
+                }
+            )
 
     Scaffold(
         topBar = {
@@ -247,6 +265,23 @@ fun DashboardScreen(
                         modifier = Modifier.weight(1f)
                     )
                 }
+            }
+
+            item {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = {
+                        searchQuery = it
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text("Buscar")
+                    },
+                    placeholder = {
+                        Text("Área, OS, inspetor, ação...")
+                    },
+                    singleLine = true
+                )
             }
 
             item {
