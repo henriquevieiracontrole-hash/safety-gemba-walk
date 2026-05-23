@@ -1,8 +1,19 @@
 package com.rork.safetygembawalk.ui.screens
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -11,8 +22,24 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedFilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,6 +62,13 @@ data class DashboardActionRow(
     val action: InspectionActionItem
 )
 
+private enum class DashboardFilter {
+    ALL,
+    PENDING,
+    WITH_OS,
+    CRITICAL
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -46,12 +80,13 @@ fun DashboardScreen(
     ),
     authViewModel: AuthViewModel = viewModel()
 ) {
-
     val uiState by homeViewModel.uiState.collectAsState()
     val authState by authViewModel.authState.collectAsState()
 
     val currentUser = authState.user
     val isAdmin = currentUser?.isAdmin == true
+
+    var selectedFilter by remember { mutableStateOf(DashboardFilter.ALL) }
 
     val visibleInspections =
         if (isAdmin) {
@@ -92,6 +127,25 @@ fun DashboardScreen(
             !it.action.hasWorkOrder
         }
 
+    val criticalActions =
+        pendingActions.filter { row ->
+            isCriticalAction(row)
+        }
+
+    val filteredPendingActions =
+        when (selectedFilter) {
+            DashboardFilter.ALL -> pendingActions
+            DashboardFilter.PENDING -> pendingActions
+            DashboardFilter.WITH_OS -> pendingWithOs
+            DashboardFilter.CRITICAL -> criticalActions
+        }.sortedWith(
+            compareByDescending<DashboardActionRow> {
+                isCriticalAction(it)
+            }.thenByDescending {
+                daysSince(it.action.createdAt)
+            }
+        )
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -111,7 +165,6 @@ fun DashboardScreen(
                         )
                     }
                 },
-
                 navigationIcon = {
                     IconButton(
                         onClick = {
@@ -132,18 +185,14 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-
             contentPadding = PaddingValues(16.dp),
-
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
             item {
-
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-
                     DashboardCard(
                         title = "Inspeções",
                         value = visibleInspections.size.toString(),
@@ -161,11 +210,9 @@ fun DashboardScreen(
             }
 
             item {
-
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-
                     DashboardCard(
                         title = "Pendentes",
                         value = pendingActions.size.toString(),
@@ -183,11 +230,9 @@ fun DashboardScreen(
             }
 
             item {
-
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-
                     DashboardCard(
                         title = "Pend. com OS",
                         value = pendingWithOs.size.toString(),
@@ -196,8 +241,8 @@ fun DashboardScreen(
                     )
 
                     DashboardCard(
-                        title = "Pend. sem OS",
-                        value = pendingWithoutOs.size.toString(),
+                        title = "Críticas",
+                        value = criticalActions.size.toString(),
                         icon = Icons.Default.Warning,
                         modifier = Modifier.weight(1f)
                     )
@@ -205,41 +250,49 @@ fun DashboardScreen(
             }
 
             item {
-
-                Text(
-                    "Ações pendentes",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 12.dp)
+                DashboardFilterChips(
+                    selectedFilter = selectedFilter,
+                    onFilterSelected = { selectedFilter = it }
                 )
             }
 
-            if (pendingActions.isEmpty()) {
+            item {
+                Text(
+                    text = when (selectedFilter) {
+                        DashboardFilter.ALL -> "Ações pendentes"
+                        DashboardFilter.PENDING -> "Pendentes"
+                        DashboardFilter.WITH_OS -> "Pendentes com OS"
+                        DashboardFilter.CRITICAL -> "Ações críticas"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
 
+            if (filteredPendingActions.isEmpty()) {
                 item {
-
                     Card(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-
                         Text(
-                            "Nenhuma ação pendente encontrada.",
+                            text = when (selectedFilter) {
+                                DashboardFilter.ALL -> "Nenhuma ação pendente encontrada."
+                                DashboardFilter.PENDING -> "Nenhuma pendência encontrada."
+                                DashboardFilter.WITH_OS -> "Nenhuma pendência com OS encontrada."
+                                DashboardFilter.CRITICAL -> "Nenhuma ação crítica encontrada."
+                            },
                             modifier = Modifier.padding(16.dp)
                         )
                     }
                 }
-
             } else {
-
                 items(
-                    pendingActions.sortedByDescending {
-                        daysSince(it.action.createdAt)
-                    }
+                    items = filteredPendingActions,
+                    key = { "${it.inspection.id}_${it.action.id}" }
                 ) { row ->
-
                     PendingActionCard(
                         row = row,
-
                         onClick = {
                             navController.navigate(
                                 "inspection_detail/${row.inspection.id}"
@@ -253,28 +306,84 @@ fun DashboardScreen(
 }
 
 @Composable
+private fun DashboardFilterChips(
+    selectedFilter: DashboardFilter,
+    onFilterSelected: (DashboardFilter) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        DashboardFilterChip(
+            text = "Todas",
+            selected = selectedFilter == DashboardFilter.ALL,
+            onClick = { onFilterSelected(DashboardFilter.ALL) }
+        )
+
+        DashboardFilterChip(
+            text = "Pendentes",
+            selected = selectedFilter == DashboardFilter.PENDING,
+            onClick = { onFilterSelected(DashboardFilter.PENDING) }
+        )
+
+        DashboardFilterChip(
+            text = "Com OS",
+            selected = selectedFilter == DashboardFilter.WITH_OS,
+            onClick = { onFilterSelected(DashboardFilter.WITH_OS) }
+        )
+
+        DashboardFilterChip(
+            text = "Críticas",
+            selected = selectedFilter == DashboardFilter.CRITICAL,
+            onClick = { onFilterSelected(DashboardFilter.CRITICAL) }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DashboardFilterChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    ElevatedFilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = text,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+            )
+        },
+        colors = FilterChipDefaults.elevatedFilterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    )
+}
+
+@Composable
 private fun DashboardCard(
     title: String,
     value: String,
     icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
-
     Card(
         modifier = modifier,
         elevation = CardDefaults.cardElevation(
             defaultElevation = 3.dp
         )
     ) {
-
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp),
-
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
             Icon(
                 icon,
                 contentDescription = null,
@@ -286,13 +395,13 @@ private fun DashboardCard(
             )
 
             Text(
-                value,
+                text = value,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
 
             Text(
-                title,
+                text = title,
                 style = MaterialTheme.typography.labelSmall
             )
         }
@@ -304,7 +413,6 @@ private fun PendingActionCard(
     row: DashboardActionRow,
     onClick: () -> Unit
 ) {
-
     val action = row.action
     val inspection = row.inspection
 
@@ -334,38 +442,26 @@ private fun PendingActionCard(
 
     Card(
         onClick = onClick,
-
         modifier = Modifier.fillMaxWidth(),
-
         elevation = CardDefaults.cardElevation(
             defaultElevation = 3.dp
         ),
-
         shape = RoundedCornerShape(14.dp)
     ) {
-
         Column(
             modifier = Modifier.padding(14.dp)
         ) {
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
-
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-
                 Text(
-                    inspection.title.ifBlank {
+                    text = inspection.title.ifBlank {
                         "Inspeção ${inspection.id}"
                     },
-
                     fontWeight = FontWeight.Bold,
-
                     maxLines = 1,
-
                     overflow = TextOverflow.Ellipsis,
-
                     modifier = Modifier.weight(1f)
                 )
 
@@ -373,19 +469,14 @@ private fun PendingActionCard(
                     color = statusColor,
                     shape = RoundedCornerShape(20.dp)
                 ) {
-
                     Text(
                         text = statusText,
-
                         color = Color.White,
-
                         modifier = Modifier.padding(
                             horizontal = 10.dp,
                             vertical = 4.dp
                         ),
-
                         style = MaterialTheme.typography.labelSmall,
-
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -396,12 +487,10 @@ private fun PendingActionCard(
             )
 
             Text(
-                action.unsafeCondition.ifBlank {
+                text = action.unsafeCondition.ifBlank {
                     "Ação sem título"
                 },
-
                 style = MaterialTheme.typography.bodyLarge,
-
                 fontWeight = FontWeight.SemiBold
             )
 
@@ -410,11 +499,11 @@ private fun PendingActionCard(
             )
 
             Text(
-                "Área: ${inspection.location.ifBlank { "-" }}"
+                text = "Área: ${inspection.location.ifBlank { "-" }}"
             )
 
             Text(
-                "Inspetor: ${inspection.inspectorName.ifBlank { "-" }}"
+                text = "Inspetor: ${inspection.inspectorName.ifBlank { "-" }}"
             )
 
             Spacer(
@@ -423,55 +512,53 @@ private fun PendingActionCard(
 
             Text(
                 text = "Dias pendente: $pendingDays",
-
                 color = statusColor,
-
                 fontWeight = FontWeight.Bold
             )
 
             if (action.hasWorkOrder) {
-
                 Spacer(
                     modifier = Modifier.height(6.dp)
                 )
 
                 Text(
                     text = "OS aberta: ${action.workOrderNumber ?: "-"}",
-
                     fontWeight = FontWeight.SemiBold
                 )
 
                 Text(
                     text = "Dias com OS aberta: ${osDays ?: "-"}",
-
                     color =
                         if ((osDays ?: 0) >= 7)
                             Color(0xFFD32F2F)
                         else
                             MaterialTheme.colorScheme.onSurface
                 )
-
             } else {
-
                 Spacer(
                     modifier = Modifier.height(6.dp)
                 )
 
                 Text(
                     text = "OS: não aberta",
-
-                    color =
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
 }
 
+private fun isCriticalAction(
+    row: DashboardActionRow
+): Boolean {
+    val pendingDays = daysSince(row.action.createdAt)
+    val osDays = row.action.workOrderOpenDate?.let { daysSince(it) } ?: 0
+    return pendingDays >= 8 || osDays >= 7
+}
+
 private fun daysSince(
     timestamp: Long
 ): Long {
-
     val diff =
         System.currentTimeMillis() - timestamp
 
