@@ -1,5 +1,6 @@
 package com.rork.safetygembawalk.ui.screens
 
+import android.app.DatePickerDialog
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -83,6 +84,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -98,6 +100,7 @@ fun NewInspectionScreen(
 ) {
     val formState by viewModel.formState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     var showCamera by remember { mutableStateOf(false) }
     var isAfterPhoto by remember { mutableStateOf(false) }
@@ -502,31 +505,50 @@ LaunchedEffect(parentInspectionId, actionId) {
 
                         Spacer(modifier = Modifier.height(12.dp))
 
+                        val calendar = Calendar.getInstance()
+
+                        if (formState.workOrderOpenDate != null) {
+                            calendar.timeInMillis = formState.workOrderOpenDate!!
+                        }
+
+                        val datePickerDialog = DatePickerDialog(
+                            context,
+                            { _, year, month, dayOfMonth ->
+                                val selectedCalendar = Calendar.getInstance()
+
+                                selectedCalendar.set(
+                                    year,
+                                    month,
+                                    dayOfMonth
+                                )
+
+                                viewModel.onAction(
+                                    InspectionAction.UpdateWorkOrderOpenDate(
+                                        selectedCalendar.timeInMillis
+                                    )
+                                )
+
+                                workOrderDateText = formatDateOnly(
+                                    selectedCalendar.timeInMillis
+                                )
+                            },
+                            calendar.get(Calendar.YEAR),
+                            calendar.get(Calendar.MONTH),
+                            calendar.get(Calendar.DAY_OF_MONTH)
+                        )
+
                         OutlinedTextField(
                             value = workOrderDateText,
-                            onValueChange = { value ->
-                                workOrderDateText = value
-
-                                if (value.length >= 10) {
-                                    val parsed = parseDateOnly(value)
-                                    if (parsed != null) {
-                                        viewModel.onAction(
-                                            InspectionAction.UpdateWorkOrderOpenDate(parsed)
-                                        )
-                                    }
-                                }
-
-                                if (value.isBlank()) {
-                                    viewModel.onAction(
-                                        InspectionAction.UpdateWorkOrderOpenDate(null)
-                                    )
-                                }
-                            },
+                            onValueChange = {},
+                            readOnly = true,
                             label = { Text("Data abertura O.S. *") },
-                            placeholder = { Text("dd/MM/aaaa") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+                            placeholder = { Text("Selecionar data") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    datePickerDialog.show()
+                                },
+                            singleLine = true
                         )
                     }
                 }
