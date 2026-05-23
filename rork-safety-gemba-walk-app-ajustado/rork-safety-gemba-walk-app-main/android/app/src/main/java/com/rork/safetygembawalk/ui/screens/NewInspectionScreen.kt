@@ -543,13 +543,20 @@ LaunchedEffect(parentInspectionId, actionId) {
                             readOnly = true,
                             label = { Text("Data abertura O.S. *") },
                             placeholder = { Text("Selecionar data") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    datePickerDialog.show()
-                                },
+                            modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Button(
+                            onClick = {
+                                datePickerDialog.show()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Selecionar Data")
+                        }
                     }
                 }
             }
