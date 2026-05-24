@@ -73,7 +73,8 @@ private enum class DashboardFilter {
     ALL,
     PENDING,
     WITH_OS,
-    CRITICAL
+    CRITICAL,
+    GRAPHICS
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -143,6 +144,7 @@ fun DashboardScreen(
 
     val filteredActions = when (selectedFilter) {
         DashboardFilter.INSPECTIONS -> emptyList()
+        DashboardFilter.GRAPHICS -> emptyList()
         DashboardFilter.ALL -> allActions
         DashboardFilter.PENDING -> pendingActions
         DashboardFilter.WITH_OS -> pendingWithOs
@@ -312,12 +314,14 @@ fun DashboardScreen(
                     )
 
                     DashboardCard(
-                        title = "Concluídas",
-                        value = completedActions.size.toString(),
+                        title = "Gráficos",
+                        value = "3",
                         icon = Icons.Default.CheckCircle,
-                        selected = false,
+                        selected = selectedFilter == DashboardFilter.GRAPHICS,
                         modifier = Modifier.weight(1f),
-                        onClick = null
+                        onClick = {
+                            selectedFilter = DashboardFilter.GRAPHICS
+                        }
                     )
                 }
             }
@@ -368,17 +372,10 @@ fun DashboardScreen(
             }
 
             item {
-                ExecutiveChartsSection(
-                    areaRanking = areaRanking,
-                    pendingAgeChart = pendingAgeChart,
-                    osAgeChart = osAgeChart
-                )
-            }
-
-            item {
                 Text(
                     text = when (selectedFilter) {
                         DashboardFilter.INSPECTIONS -> "Inspeções"
+                        DashboardFilter.GRAPHICS -> "Gráficos executivos"
                         DashboardFilter.ALL -> "Todas as ações"
                         DashboardFilter.PENDING -> "Pendentes"
                         DashboardFilter.WITH_OS -> "Pendentes com OS"
@@ -412,12 +409,21 @@ fun DashboardScreen(
                         )
                     }
                 }
+            } else if (selectedFilter == DashboardFilter.GRAPHICS) {
+                item {
+                    ExecutiveChartsSection(
+                        areaRanking = areaRanking,
+                        pendingAgeChart = pendingAgeChart,
+                        osAgeChart = osAgeChart
+                    )
+                }
             } else {
                 if (filteredActions.isEmpty()) {
                     item {
                         EmptyDashboardMessage(
                             message = when (selectedFilter) {
                                 DashboardFilter.INSPECTIONS -> "Nenhuma inspeção encontrada."
+                                DashboardFilter.GRAPHICS -> "Nenhum gráfico disponível."
                                 DashboardFilter.ALL -> "Nenhuma ação encontrada."
                                 DashboardFilter.PENDING -> "Nenhuma pendência encontrada."
                                 DashboardFilter.WITH_OS -> "Nenhuma pendência com OS encontrada."
