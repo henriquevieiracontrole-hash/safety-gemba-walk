@@ -64,6 +64,7 @@ data class DashboardActionRow(
 )
 
 private enum class DashboardFilter {
+    INSPECTIONS,
     ALL,
     PENDING,
     WITH_OS,
@@ -87,7 +88,7 @@ fun DashboardScreen(
     val currentUser = authState.user
     val isAdmin = currentUser?.isAdmin == true
 
-    var selectedFilter by remember { mutableStateOf(DashboardFilter.ALL) }
+    var selectedFilter by remember { mutableStateOf(DashboardFilter.INSPECTIONS) }
     var searchQuery by remember { mutableStateOf("") }
 
     val visibleInspections =
@@ -215,18 +216,18 @@ fun DashboardScreen(
                         title = "Inspeções",
                         value = visibleInspections.size.toString(),
                         icon = Icons.Default.Assessment,
-                        selected = selectedFilter == DashboardFilter.ALL,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            selectedFilter = DashboardFilter.ALL
-                        }
+                        modifier = Modifier.weight(1f)
                     )
 
                     DashboardCard(
                         title = "Ações",
                         value = allActions.size.toString(),
                         icon = Icons.Default.PendingActions,
-                        modifier = Modifier.weight(1f)
+                        selected = selectedFilter == DashboardFilter.ALL,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            selectedFilter = DashboardFilter.ALL
+                        }
                     )
                 }
             }
@@ -239,11 +240,7 @@ fun DashboardScreen(
                         title = "Pendentes",
                         value = pendingActions.size.toString(),
                         icon = Icons.Default.Warning,
-                        selected = selectedFilter == DashboardFilter.PENDING,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            selectedFilter = DashboardFilter.PENDING
-                        }
+                        modifier = Modifier.weight(1f)
                     )
 
                     DashboardCard(
@@ -263,22 +260,14 @@ fun DashboardScreen(
                         title = "Pend. com OS",
                         value = pendingWithOs.size.toString(),
                         icon = Icons.Default.Build,
-                        selected = selectedFilter == DashboardFilter.WITH_OS,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            selectedFilter = DashboardFilter.WITH_OS
-                        }
+                        modifier = Modifier.weight(1f)
                     )
 
                     DashboardCard(
                         title = "Críticas",
                         value = criticalActions.size.toString(),
                         icon = Icons.Default.Warning,
-                        selected = selectedFilter == DashboardFilter.CRITICAL,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            selectedFilter = DashboardFilter.CRITICAL
-                        }
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -301,9 +290,17 @@ fun DashboardScreen(
             }
 
             item {
+                DashboardFilterChips(
+                    selectedFilter = selectedFilter,
+                    onFilterSelected = { selectedFilter = it }
+                )
+            }
+
+            item {
                 Text(
                     text = when (selectedFilter) {
-                        DashboardFilter.ALL -> "Ações pendentes"
+                        DashboardFilter.INSPECTIONS -> "Inspeções"
+                        DashboardFilter.ALL -> "Todas as ações"
                         DashboardFilter.PENDING -> "Pendentes"
                         DashboardFilter.WITH_OS -> "Pendentes com OS"
                         DashboardFilter.CRITICAL -> "Ações críticas"
@@ -313,6 +310,100 @@ fun DashboardScreen(
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
+
+
+            if (selectedFilter == DashboardFilter.INSPECTIONS) {
+
+                if (visibleInspections.isEmpty()) {
+
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Nenhuma inspeção encontrada.",
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+
+                } else {
+
+                    items(
+                        items = visibleInspections,
+                        key = { it.id }
+                    ) { inspection ->
+
+                        Card(
+                            onClick = {
+                                navController.navigate(
+                                    "inspection_detail/${inspection.id}"
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = 3.dp
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+
+                            Column(
+                                modifier = Modifier.padding(14.dp)
+                            ) {
+
+                                Text(
+                                    text =
+                                        inspection.title.ifBlank {
+                                            "Inspeção ${inspection.id}"
+                                        },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(
+                                    modifier = Modifier.height(8.dp)
+                                )
+
+                                Text(
+                                    text = "Área: ${inspection.location.ifBlank { "-" }}"
+                                )
+
+                                Text(
+                                    text = "Inspetor: ${inspection.inspectorName.ifBlank { "-" }}"
+                                )
+
+                                Spacer(
+                                    modifier = Modifier.height(8.dp)
+                                )
+
+                                Text(
+                                    text = "Ações: ${inspection.actions.size}",
+                                    fontWeight = FontWeight.SemiBold
+                                )
+
+                                Text(
+                                    text =
+                                        "Pendentes: ${
+                                            inspection.actions.count {
+                                                it.status == InspectionStatus.PENDING
+                                            }
+                                        }"
+                                )
+
+                                Text(
+                                    text =
+                                        "Concluídas: ${
+                                            inspection.actions.count {
+                                                it.status == InspectionStatus.COMPLETED
+                                            }
+                                        }"
+                                )
+                            }
+                        }
+                    }
+                }
+
+            } else {
 
             if (filteredPendingActions.isEmpty()) {
                 item {
@@ -345,8 +436,70 @@ fun DashboardScreen(
                     )
                 }
             }
+
+            }
         }
     }
+}
+
+@Composable
+private fun DashboardFilterChips(
+    selectedFilter: DashboardFilter,
+    onFilterSelected: (DashboardFilter) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        DashboardFilterChip(
+            text = "Todas",
+            selected = selectedFilter == DashboardFilter.INSPECTIONS,
+            onClick = { onFilterSelected(DashboardFilter.ALL) }
+        )
+
+        DashboardFilterChip(
+            text = "Pendentes",
+            selected = selectedFilter == DashboardFilter.PENDING,
+            onClick = { onFilterSelected(DashboardFilter.PENDING) }
+        )
+
+        DashboardFilterChip(
+            text = "Com OS",
+            selected = selectedFilter == DashboardFilter.WITH_OS,
+            onClick = { onFilterSelected(DashboardFilter.WITH_OS) }
+        )
+
+        DashboardFilterChip(
+            text = "Críticas",
+            selected = selectedFilter == DashboardFilter.CRITICAL,
+            onClick = { onFilterSelected(DashboardFilter.CRITICAL) }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DashboardFilterChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    ElevatedFilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = text,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+            )
+        },
+        colors = FilterChipDefaults.elevatedFilterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    )
 }
 
 @Composable
@@ -354,25 +507,12 @@ private fun DashboardCard(
     title: String,
     value: String,
     icon: ImageVector,
-    modifier: Modifier = Modifier,
-    selected: Boolean = false,
-    onClick: (() -> Unit)? = null
+    modifier: Modifier = Modifier
 ) {
     Card(
-        onClick = {
-            onClick?.invoke()
-        },
         modifier = modifier,
         elevation = CardDefaults.cardElevation(
-            defaultElevation =
-                if (selected) 8.dp else 3.dp
-        ),
-        colors = CardDefaults.cardColors(
-            containerColor =
-                if (selected)
-                    Color(0xFFE3F2FD)
-                else
-                    MaterialTheme.colorScheme.surface
+            defaultElevation = 3.dp
         )
     ) {
         Column(
@@ -384,12 +524,7 @@ private fun DashboardCard(
             Icon(
                 icon,
                 contentDescription = null,
-                modifier = Modifier.size(28.dp),
-                tint =
-                    if (selected)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurface
+                modifier = Modifier.size(28.dp)
             )
 
             Spacer(
@@ -399,22 +534,12 @@ private fun DashboardCard(
             Text(
                 text = value,
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color =
-                    if (selected)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurface
+                fontWeight = FontWeight.Bold
             )
 
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelSmall,
-                color =
-                    if (selected)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.labelSmall
             )
         }
     }
