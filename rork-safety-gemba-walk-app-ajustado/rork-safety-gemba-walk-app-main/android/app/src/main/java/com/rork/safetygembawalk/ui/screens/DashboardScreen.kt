@@ -215,7 +215,11 @@ fun DashboardScreen(
                         title = "Inspeções",
                         value = visibleInspections.size.toString(),
                         icon = Icons.Default.Assessment,
-                        modifier = Modifier.weight(1f)
+                        selected = selectedFilter == DashboardFilter.ALL,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            selectedFilter = DashboardFilter.ALL
+                        }
                     )
 
                     DashboardCard(
@@ -235,7 +239,11 @@ fun DashboardScreen(
                         title = "Pendentes",
                         value = pendingActions.size.toString(),
                         icon = Icons.Default.Warning,
-                        modifier = Modifier.weight(1f)
+                        selected = selectedFilter == DashboardFilter.PENDING,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            selectedFilter = DashboardFilter.PENDING
+                        }
                     )
 
                     DashboardCard(
@@ -255,14 +263,22 @@ fun DashboardScreen(
                         title = "Pend. com OS",
                         value = pendingWithOs.size.toString(),
                         icon = Icons.Default.Build,
-                        modifier = Modifier.weight(1f)
+                        selected = selectedFilter == DashboardFilter.WITH_OS,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            selectedFilter = DashboardFilter.WITH_OS
+                        }
                     )
 
                     DashboardCard(
                         title = "Críticas",
                         value = criticalActions.size.toString(),
                         icon = Icons.Default.Warning,
-                        modifier = Modifier.weight(1f)
+                        selected = selectedFilter == DashboardFilter.CRITICAL,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            selectedFilter = DashboardFilter.CRITICAL
+                        }
                     )
                 }
             }
@@ -281,13 +297,6 @@ fun DashboardScreen(
                         Text("Área, OS, inspetor, ação...")
                     },
                     singleLine = true
-                )
-            }
-
-            item {
-                DashboardFilterChips(
-                    selectedFilter = selectedFilter,
-                    onFilterSelected = { selectedFilter = it }
                 )
             }
 
@@ -341,76 +350,29 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun DashboardFilterChips(
-    selectedFilter: DashboardFilter,
-    onFilterSelected: (DashboardFilter) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        DashboardFilterChip(
-            text = "Todas",
-            selected = selectedFilter == DashboardFilter.ALL,
-            onClick = { onFilterSelected(DashboardFilter.ALL) }
-        )
-
-        DashboardFilterChip(
-            text = "Pendentes",
-            selected = selectedFilter == DashboardFilter.PENDING,
-            onClick = { onFilterSelected(DashboardFilter.PENDING) }
-        )
-
-        DashboardFilterChip(
-            text = "Com OS",
-            selected = selectedFilter == DashboardFilter.WITH_OS,
-            onClick = { onFilterSelected(DashboardFilter.WITH_OS) }
-        )
-
-        DashboardFilterChip(
-            text = "Críticas",
-            selected = selectedFilter == DashboardFilter.CRITICAL,
-            onClick = { onFilterSelected(DashboardFilter.CRITICAL) }
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DashboardFilterChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    ElevatedFilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = text,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-            )
-        },
-        colors = FilterChipDefaults.elevatedFilterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-        )
-    )
-}
-
-@Composable
 private fun DashboardCard(
     title: String,
     value: String,
     icon: ImageVector,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
+        onClick = {
+            onClick?.invoke()
+        },
         modifier = modifier,
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 3.dp
+            defaultElevation =
+                if (selected) 8.dp else 3.dp
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor =
+                if (selected)
+                    Color(0xFFE3F2FD)
+                else
+                    MaterialTheme.colorScheme.surface
         )
     ) {
         Column(
@@ -422,7 +384,12 @@ private fun DashboardCard(
             Icon(
                 icon,
                 contentDescription = null,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(28.dp),
+                tint =
+                    if (selected)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(
@@ -432,12 +399,22 @@ private fun DashboardCard(
             Text(
                 text = value,
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color =
+                    if (selected)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurface
             )
 
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelSmall
+                style = MaterialTheme.typography.labelSmall,
+                color =
+                    if (selected)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurface
             )
         }
     }
