@@ -314,13 +314,14 @@ fun DashboardScreen(
                     )
 
                     DashboardCard(
-                        title = "Gráficos",
-                        value = "3",
-                        icon = Icons.Default.CheckCircle,
-                        selected = selectedFilter == DashboardFilter.GRAPHICS,
+                            title = "Pend. com OS",
+                        value = pendingWithOs.size.toString(),
+                        icon = Icons.Default.Build,
+                        selected = selectedFilter == DashboardFilter.WITH_OS,
                         modifier = Modifier.weight(1f),
                         onClick = {
-                            selectedFilter = DashboardFilter.GRAPHICS
+                            selectedFilter = DashboardFilter.WITH_OS
+                       
                         }
                     )
                 }
@@ -331,24 +332,26 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     DashboardCard(
-                        title = "Pend. com OS",
-                        value = pendingWithOs.size.toString(),
-                        icon = Icons.Default.Build,
-                        selected = selectedFilter == DashboardFilter.WITH_OS,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            selectedFilter = DashboardFilter.WITH_OS
-                        }
-                    )
-
-                    DashboardCard(
-                        title = "Críticas",
+                      title = "Críticas",
                         value = criticalActions.size.toString(),
                         icon = Icons.Default.Warning,
                         selected = selectedFilter == DashboardFilter.CRITICAL,
                         modifier = Modifier.weight(1f),
                         onClick = {
                             selectedFilter = DashboardFilter.CRITICAL
+                    
+                        }
+                    )
+
+                    DashboardCard(
+                         title = "Gráficos",
+                        value = "3",
+                        icon = Icons.Default.CheckCircle,
+                        selected = selectedFilter == DashboardFilter.GRAPHICS,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            selectedFilter = DashboardFilter.GRAPHICS
+                       
                         }
                     )
                 }
