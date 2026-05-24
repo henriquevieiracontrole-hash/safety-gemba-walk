@@ -1,19 +1,21 @@
 package com.rork.safetygembawalk.ui.screens
 
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -24,9 +26,7 @@ import androidx.compose.material.icons.filled.PendingActions
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedFilterChip
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -63,6 +63,11 @@ data class DashboardActionRow(
     val action: InspectionActionItem
 )
 
+private data class ChartItem(
+    val label: String,
+    val value: Int
+)
+
 private enum class DashboardFilter {
     INSPECTIONS,
     ALL,
@@ -91,79 +96,133 @@ fun DashboardScreen(
     var selectedFilter by remember { mutableStateOf(DashboardFilter.INSPECTIONS) }
     var searchQuery by remember { mutableStateOf("") }
 
-    val visibleInspections =
-        if (isAdmin) {
-            uiState.inspections
-        } else {
-            uiState.inspections.filter {
-                it.inspectorName.equals(
-                    currentUser?.fullName ?: "",
-                    ignoreCase = true
-                )
-            }
-        }
-
-    val allActions =
-        visibleInspections.flatMap { inspection ->
-            inspection.actions.map { action ->
-                DashboardActionRow(inspection, action)
-            }
-        }
-
-    val pendingActions =
-        allActions.filter {
-            it.action.status == InspectionStatus.PENDING
-        }
-
-    val completedActions =
-        allActions.filter {
-            it.action.status == InspectionStatus.COMPLETED
-        }
-
-    val pendingWithOs =
-        pendingActions.filter {
-            it.action.hasWorkOrder
-        }
-
-    val pendingWithoutOs =
-        pendingActions.filter {
-            !it.action.hasWorkOrder
-        }
-
-    val criticalActions =
-        pendingActions.filter { row ->
-            isCriticalAction(row)
-        }
-
-    val filteredPendingActions =
-        when (selectedFilter) {
-            DashboardFilter.ALL -> pendingActions
-            DashboardFilter.PENDING -> pendingActions
-            DashboardFilter.WITH_OS -> pendingWithOs
-            DashboardFilter.CRITICAL -> criticalActions
-        }
-            .filter { row ->
-                val search = searchQuery.trim()
-
-                if (search.isBlank()) {
-                    true
-                } else {
-                    row.inspection.title.contains(search, ignoreCase = true) ||
-                        row.inspection.location.contains(search, ignoreCase = true) ||
-                        row.inspection.inspectorName.contains(search, ignoreCase = true) ||
-                        row.action.unsafeCondition.contains(search, ignoreCase = true) ||
-                        row.action.description.contains(search, ignoreCase = true) ||
-                        row.action.immediateAction.contains(search, ignoreCase = true) ||
-                        (row.action.workOrderNumber ?: "").contains(search, ignoreCase = true)
-                }
-            }
-            .sortedWith(
-                compareByDescending<DashboardActionRow> {
-                    isCriticalAction(it)
-                }.thenByDescending {
-                    daysSince(it.action.createdAt)
-                }
+    val visibleInspections = if (isAdmin) {
+        uiState.inspections
+    } else {
+        uiState.inspections.filter {
+            it.inspectorName.equals(
+                currentUser?.fullName ?: "",
+                ignoreCase = true
             )
+        }
+    }
+
+    val allActions = visibleInspections.flatMap { inspection ->
+        inspection.actions.map { action ->
+            DashboardActionRow(
+                inspection = inspection,
+                action = action
+            )
+        }
+    }
+
+    val pendingActions = allActions.filter {
+        it.action.status == InspectionStatus.PENDING
+    }
+
+    val completedActions = allActions.filter {
+        it.action.status == InspectionStatus.COMPLETED
+    }
+
+    val pendingWithOs = pendingActions.filter {
+        it.action.hasWorkOrder
+    }
+
+    val criticalActions = pendingActions.filter {
+        isCriticalAction(it)
+    }
+
+    val filteredInspections = visibleInspections
+        .filter { inspection ->
+            matchesInspectionSearch(
+                inspection = inspection,
+                search = searchQuery
+            )
+        }
+        .sortedByDescending { it.createdAt }
+
+    val filteredActions = when (selectedFilter) {
+        DashboardFilter.INSPECTIONS -> emptyList()
+        DashboardFilter.ALL -> allActions
+        DashboardFilter.PENDING -> pendingActions
+        DashboardFilter.WITH_OS -> pendingWithOs
+        DashboardFilter.CRITICAL -> criticalActions
+    }
+        .filter { row ->
+            matchesActionSearch(
+                row = row,
+                search = searchQuery
+            )
+        }
+        .sortedWith(
+            compareByDescending<DashboardActionRow> {
+                isCriticalAction(it)
+            }.thenByDescending {
+                daysSince(it.action.createdAt)
+            }
+        )
+
+    val areaRanking = pendingActions
+        .groupBy { it.inspection.location.ifBlank { "Sem área" } }
+        .map { (area, rows) ->
+            ChartItem(
+                label = area,
+                value = rows.size
+            )
+        }
+        .sortedByDescending { it.value }
+        .take(5)
+
+    val pendingAgeChart = listOf(
+        ChartItem(
+            label = "0-3 dias",
+            value = pendingActions.count {
+                daysSince(it.action.createdAt) <= 3
+            }
+        ),
+        ChartItem(
+            label = "4-7 dias",
+            value = pendingActions.count {
+                daysSince(it.action.createdAt) in 4..7
+            }
+        ),
+        ChartItem(
+            label = "8+ dias",
+            value = pendingActions.count {
+                daysSince(it.action.createdAt) >= 8
+            }
+        )
+    )
+
+    val osAgeChart = listOf(
+        ChartItem(
+            label = "0-7 dias",
+            value = pendingWithOs.count {
+                val days = it.action.workOrderOpenDate?.let { date ->
+                    daysSince(date)
+                } ?: 0
+                days <= 7
+            }
+        ),
+        ChartItem(
+            label = "8-30 dias",
+            value = pendingWithOs.count {
+                val days = it.action.workOrderOpenDate?.let { date ->
+                    daysSince(date)
+                } ?: 0
+                days in 8..30
+            }
+        ),
+        ChartItem(
+            label = "31+ dias",
+            value = pendingWithOs.count {
+                val days = it.action.workOrderOpenDate?.let { date ->
+                    daysSince(date)
+                } ?: 0
+                days >= 31
+            }
+        )
+    )
 
     Scaffold(
         topBar = {
@@ -171,15 +230,16 @@ fun DashboardScreen(
                 title = {
                     Column {
                         Text(
-                            "Dashboard",
+                            text = "Dashboard",
                             fontWeight = FontWeight.Bold
                         )
 
                         Text(
-                            if (isAdmin)
+                            text = if (isAdmin) {
                                 "Visão geral ADM"
-                            else
-                                "Minha visão",
+                            } else {
+                                "Minha visão"
+                            },
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -191,7 +251,7 @@ fun DashboardScreen(
                         }
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Voltar"
                         )
                     }
@@ -216,7 +276,11 @@ fun DashboardScreen(
                         title = "Inspeções",
                         value = visibleInspections.size.toString(),
                         icon = Icons.Default.Assessment,
-                        modifier = Modifier.weight(1f)
+                        selected = selectedFilter == DashboardFilter.INSPECTIONS,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            selectedFilter = DashboardFilter.INSPECTIONS
+                        }
                     )
 
                     DashboardCard(
@@ -240,14 +304,20 @@ fun DashboardScreen(
                         title = "Pendentes",
                         value = pendingActions.size.toString(),
                         icon = Icons.Default.Warning,
-                        modifier = Modifier.weight(1f)
+                        selected = selectedFilter == DashboardFilter.PENDING,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            selectedFilter = DashboardFilter.PENDING
+                        }
                     )
 
                     DashboardCard(
                         title = "Concluídas",
                         value = completedActions.size.toString(),
                         icon = Icons.Default.CheckCircle,
-                        modifier = Modifier.weight(1f)
+                        selected = false,
+                        modifier = Modifier.weight(1f),
+                        onClick = null
                     )
                 }
             }
@@ -260,14 +330,22 @@ fun DashboardScreen(
                         title = "Pend. com OS",
                         value = pendingWithOs.size.toString(),
                         icon = Icons.Default.Build,
-                        modifier = Modifier.weight(1f)
+                        selected = selectedFilter == DashboardFilter.WITH_OS,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            selectedFilter = DashboardFilter.WITH_OS
+                        }
                     )
 
                     DashboardCard(
                         title = "Críticas",
                         value = criticalActions.size.toString(),
                         icon = Icons.Default.Warning,
-                        modifier = Modifier.weight(1f)
+                        selected = selectedFilter == DashboardFilter.CRITICAL,
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            selectedFilter = DashboardFilter.CRITICAL
+                        }
                     )
                 }
             }
@@ -290,9 +368,10 @@ fun DashboardScreen(
             }
 
             item {
-                DashboardFilterChips(
-                    selectedFilter = selectedFilter,
-                    onFilterSelected = { selectedFilter = it }
+                ExecutiveChartsSection(
+                    areaRanking = areaRanking,
+                    pendingAgeChart = pendingAgeChart,
+                    osAgeChart = osAgeChart
                 )
             }
 
@@ -311,195 +390,202 @@ fun DashboardScreen(
                 )
             }
 
-
             if (selectedFilter == DashboardFilter.INSPECTIONS) {
-
-                if (visibleInspections.isEmpty()) {
-
+                if (filteredInspections.isEmpty()) {
                     item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "Nenhuma inspeção encontrada.",
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
+                        EmptyDashboardMessage(
+                            message = "Nenhuma inspeção encontrada."
+                        )
                     }
-
                 } else {
-
                     items(
-                        items = visibleInspections,
+                        items = filteredInspections,
                         key = { it.id }
                     ) { inspection ->
-
-                        Card(
+                        InspectionSummaryCard(
+                            inspection = inspection,
                             onClick = {
                                 navController.navigate(
                                     "inspection_detail/${inspection.id}"
                                 )
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(
-                                defaultElevation = 3.dp
-                            ),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-
-                            Column(
-                                modifier = Modifier.padding(14.dp)
-                            ) {
-
-                                Text(
-                                    text =
-                                        inspection.title.ifBlank {
-                                            "Inspeção ${inspection.id}"
-                                        },
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-
-                                Spacer(
-                                    modifier = Modifier.height(8.dp)
-                                )
-
-                                Text(
-                                    text = "Área: ${inspection.location.ifBlank { "-" }}"
-                                )
-
-                                Text(
-                                    text = "Inspetor: ${inspection.inspectorName.ifBlank { "-" }}"
-                                )
-
-                                Spacer(
-                                    modifier = Modifier.height(8.dp)
-                                )
-
-                                Text(
-                                    text = "Ações: ${inspection.actions.size}",
-                                    fontWeight = FontWeight.SemiBold
-                                )
-
-                                Text(
-                                    text =
-                                        "Pendentes: ${
-                                            inspection.actions.count {
-                                                it.status == InspectionStatus.PENDING
-                                            }
-                                        }"
-                                )
-
-                                Text(
-                                    text =
-                                        "Concluídas: ${
-                                            inspection.actions.count {
-                                                it.status == InspectionStatus.COMPLETED
-                                            }
-                                        }"
-                                )
                             }
-                        }
-                    }
-                }
-
-            } else {
-
-            if (filteredPendingActions.isEmpty()) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = when (selectedFilter) {
-                                DashboardFilter.ALL -> "Nenhuma ação pendente encontrada."
-                                DashboardFilter.PENDING -> "Nenhuma pendência encontrada."
-                                DashboardFilter.WITH_OS -> "Nenhuma pendência com OS encontrada."
-                                DashboardFilter.CRITICAL -> "Nenhuma ação crítica encontrada."
-                            },
-                            modifier = Modifier.padding(16.dp)
                         )
                     }
                 }
             } else {
-                items(
-                    items = filteredPendingActions,
-                    key = { "${it.inspection.id}_${it.action.id}" }
-                ) { row ->
-                    PendingActionCard(
-                        row = row,
-                        onClick = {
-                            navController.navigate(
-                                "inspection_detail/${row.inspection.id}"
-                            )
-                        }
-                    )
+                if (filteredActions.isEmpty()) {
+                    item {
+                        EmptyDashboardMessage(
+                            message = when (selectedFilter) {
+                                DashboardFilter.INSPECTIONS -> "Nenhuma inspeção encontrada."
+                                DashboardFilter.ALL -> "Nenhuma ação encontrada."
+                                DashboardFilter.PENDING -> "Nenhuma pendência encontrada."
+                                DashboardFilter.WITH_OS -> "Nenhuma pendência com OS encontrada."
+                                DashboardFilter.CRITICAL -> "Nenhuma ação crítica encontrada."
+                            }
+                        )
+                    }
+                } else {
+                    items(
+                        items = filteredActions,
+                        key = { "${it.inspection.id}_${it.action.id}" }
+                    ) { row ->
+                        PendingActionCard(
+                            row = row,
+                            onClick = {
+                                navController.navigate(
+                                    "inspection_detail/${row.inspection.id}"
+                                )
+                            }
+                        )
+                    }
                 }
-            }
-
             }
         }
     }
 }
 
 @Composable
-private fun DashboardFilterChips(
-    selectedFilter: DashboardFilter,
-    onFilterSelected: (DashboardFilter) -> Unit
+private fun ExecutiveChartsSection(
+    areaRanking: List<ChartItem>,
+    pendingAgeChart: List<ChartItem>,
+    osAgeChart: List<ChartItem>
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        DashboardFilterChip(
-            text = "Todas",
-            selected = selectedFilter == DashboardFilter.INSPECTIONS,
-            onClick = { onFilterSelected(DashboardFilter.ALL) }
+        ChartCard(
+            title = "Ranking por área",
+            subtitle = "Áreas com mais ações pendentes",
+            items = areaRanking
         )
 
-        DashboardFilterChip(
-            text = "Pendentes",
-            selected = selectedFilter == DashboardFilter.PENDING,
-            onClick = { onFilterSelected(DashboardFilter.PENDING) }
+        ChartCard(
+            title = "Idade das pendências",
+            subtitle = "Tempo em aberto das ações pendentes",
+            items = pendingAgeChart
         )
 
-        DashboardFilterChip(
-            text = "Com OS",
-            selected = selectedFilter == DashboardFilter.WITH_OS,
-            onClick = { onFilterSelected(DashboardFilter.WITH_OS) }
-        )
-
-        DashboardFilterChip(
-            text = "Críticas",
-            selected = selectedFilter == DashboardFilter.CRITICAL,
-            onClick = { onFilterSelected(DashboardFilter.CRITICAL) }
+        ChartCard(
+            title = "OS abertas por tempo",
+            subtitle = "Tempo em aberto das OS vinculadas às pendências",
+            items = osAgeChart
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DashboardFilterChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
+private fun ChartCard(
+    title: String,
+    subtitle: String,
+    items: List<ChartItem>
 ) {
-    ElevatedFilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = text,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+    val safeItems = items.ifEmpty {
+        listOf(
+            ChartItem(
+                label = "Sem dados",
+                value = 0
             )
-        },
-        colors = FilterChipDefaults.elevatedFilterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
         )
-    )
+    }
+
+    val maxValue = safeItems.maxOfOrNull { it.value } ?: 0
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 3.dp
+        ),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(
+                modifier = Modifier.height(12.dp)
+            )
+
+            safeItems.forEach { item ->
+                ChartBarRow(
+                    label = item.label,
+                    value = item.value,
+                    maxValue = maxValue
+                )
+
+                Spacer(
+                    modifier = Modifier.height(8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChartBarRow(
+    label: String,
+    value: Int,
+    maxValue: Int
+) {
+    val barWeight = if (maxValue <= 0) {
+        0.01f
+    } else {
+        (value.toFloat() / maxValue.toFloat()).coerceAtLeast(0.05f)
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.width(90.dp),
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(18.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(20.dp)
+                )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(barWeight)
+                    .background(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(20.dp)
+                    )
+            )
+        }
+
+        Spacer(
+            modifier = Modifier.width(8.dp)
+        )
+
+        Text(
+            text = value.toString(),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
 
 @Composable
@@ -507,12 +593,24 @@ private fun DashboardCard(
     title: String,
     value: String,
     icon: ImageVector,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
+        onClick = {
+            onClick?.invoke()
+        },
         modifier = modifier,
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 3.dp
+            defaultElevation = if (selected) 8.dp else 3.dp
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                Color(0xFFE3F2FD)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
         )
     ) {
         Column(
@@ -522,9 +620,14 @@ private fun DashboardCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
-                icon,
+                imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(28.dp),
+                tint = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
             )
 
             Spacer(
@@ -534,12 +637,86 @@ private fun DashboardCard(
             Text(
                 text = value,
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
             )
 
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelSmall
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun InspectionSummaryCard(
+    inspection: Inspection,
+    onClick: () -> Unit
+) {
+    val pendingCount = inspection.actions.count {
+        it.status == InspectionStatus.PENDING
+    }
+
+    val completedCount = inspection.actions.count {
+        it.status == InspectionStatus.COMPLETED
+    }
+
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 3.dp
+        ),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp)
+        ) {
+            Text(
+                text = inspection.title.ifBlank {
+                    "Inspeção ${inspection.id}"
+                },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            Text(
+                text = "Área: ${inspection.location.ifBlank { "-" }}"
+            )
+
+            Text(
+                text = "Inspetor: ${inspection.inspectorName.ifBlank { "-" }}"
+            )
+
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            Text(
+                text = "Ações: ${inspection.actions.size}",
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Text(
+                text = "Pendentes: $pendingCount"
+            )
+
+            Text(
+                text = "Concluídas: $completedCount"
             )
         }
     }
@@ -555,27 +732,24 @@ private fun PendingActionCard(
 
     val pendingDays = daysSince(action.createdAt)
 
-    val osDays =
-        action.workOrderOpenDate?.let {
-            daysSince(it)
-        }
+    val osDays = action.workOrderOpenDate?.let {
+        daysSince(it)
+    }
 
     val isCritical = pendingDays >= 8
     val isWarning = pendingDays in 4..7
 
-    val statusColor =
-        when {
-            isCritical -> Color(0xFFD32F2F)
-            isWarning -> Color(0xFFF9A825)
-            else -> MaterialTheme.colorScheme.primary
-        }
+    val statusColor = when {
+        isCritical -> Color(0xFFD32F2F)
+        isWarning -> Color(0xFFF9A825)
+        else -> MaterialTheme.colorScheme.primary
+    }
 
-    val statusText =
-        when {
-            isCritical -> "CRÍTICO"
-            isWarning -> "ATENÇÃO"
-            else -> "NORMAL"
-        }
+    val statusText = when {
+        isCritical -> "CRÍTICO"
+        isWarning -> "ATENÇÃO"
+        else -> "NORMAL"
+    }
 
     Card(
         onClick = onClick,
@@ -665,11 +839,11 @@ private fun PendingActionCard(
 
                 Text(
                     text = "Dias com OS aberta: ${osDays ?: "-"}",
-                    color =
-                        if ((osDays ?: 0) >= 7)
-                            Color(0xFFD32F2F)
-                        else
-                            MaterialTheme.colorScheme.onSurface
+                    color = if ((osDays ?: 0) >= 7) {
+                        Color(0xFFD32F2F)
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
                 )
             } else {
                 Spacer(
@@ -685,19 +859,76 @@ private fun PendingActionCard(
     }
 }
 
+@Composable
+private fun EmptyDashboardMessage(
+    message: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+private fun matchesInspectionSearch(
+    inspection: Inspection,
+    search: String
+): Boolean {
+    val query = search.trim()
+
+    if (query.isBlank()) {
+        return true
+    }
+
+    return inspection.title.contains(query, ignoreCase = true) ||
+        inspection.location.contains(query, ignoreCase = true) ||
+        inspection.inspectorName.contains(query, ignoreCase = true) ||
+        inspection.actions.any { action ->
+            action.unsafeCondition.contains(query, ignoreCase = true) ||
+                action.description.contains(query, ignoreCase = true) ||
+                action.immediateAction.contains(query, ignoreCase = true) ||
+                (action.workOrderNumber ?: "").contains(query, ignoreCase = true)
+        }
+}
+
+private fun matchesActionSearch(
+    row: DashboardActionRow,
+    search: String
+): Boolean {
+    val query = search.trim()
+
+    if (query.isBlank()) {
+        return true
+    }
+
+    return row.inspection.title.contains(query, ignoreCase = true) ||
+        row.inspection.location.contains(query, ignoreCase = true) ||
+        row.inspection.inspectorName.contains(query, ignoreCase = true) ||
+        row.action.unsafeCondition.contains(query, ignoreCase = true) ||
+        row.action.description.contains(query, ignoreCase = true) ||
+        row.action.immediateAction.contains(query, ignoreCase = true) ||
+        (row.action.workOrderNumber ?: "").contains(query, ignoreCase = true)
+}
+
 private fun isCriticalAction(
     row: DashboardActionRow
 ): Boolean {
     val pendingDays = daysSince(row.action.createdAt)
-    val osDays = row.action.workOrderOpenDate?.let { daysSince(it) } ?: 0
+
+    val osDays = row.action.workOrderOpenDate?.let {
+        daysSince(it)
+    } ?: 0
+
     return pendingDays >= 8 || osDays >= 7
 }
 
 private fun daysSince(
     timestamp: Long
 ): Long {
-    val diff =
-        System.currentTimeMillis() - timestamp
+    val diff = System.currentTimeMillis() - timestamp
 
     return TimeUnit.MILLISECONDS
         .toDays(diff)
