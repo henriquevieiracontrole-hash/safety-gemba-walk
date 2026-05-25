@@ -32,7 +32,8 @@ class InspectionRepository private constructor(context: Context) {
     private fun loadInspections() {
         val data = prefs.getString(inspectionsKey, "[]") ?: "[]"
         _inspections.value = try {
-            json.decodeFromString(data)
+            json.decodeFromString<List<Inspection>>(data)
+                .filter { !it.deleted && it.deletedAt == null }
         } catch (e: Exception) {
             emptyList()
         }
@@ -51,7 +52,7 @@ class InspectionRepository private constructor(context: Context) {
     }
 
     private fun syncPdfToFirebase(inspection: Inspection) {
-        if (inspection.actions.isEmpty()) return
+        if (inspection.actions.isEmpty() || inspection.deleted) return
 
         Thread {
             try {
@@ -81,33 +82,44 @@ class InspectionRepository private constructor(context: Context) {
     fun getInspectionsByStatus(status: InspectionStatus): Flow<List<Inspection>> =
         inspections.map { list ->
             list.filter { inspection ->
+                !inspection.deleted &&
+                inspection.deletedAt == null &&
                 inspection.status == status
             }
         }
 
     fun getInspectionById(id: Long): Inspection? {
-        return _inspections.value.find { it.id == id }
+        return _inspections.value.find { it.id == id && !it.deleted && it.deletedAt == null }
     }
 
     fun insertInspection(inspection: Inspection): Long {
-        val currentList = _inspections.value.toMutableList()
+        val savedListData = prefs.getString(inspectionsKey, "[]") ?: "[]"
+        val fullList = try {
+            json.decodeFromString<List<Inspection>>(savedListData).toMutableList()
+        } catch (e: Exception) {
+            _inspections.value.toMutableList()
+        }
+
         val newId = if (inspection.id == 0L) System.currentTimeMillis() else inspection.id
 
         val newInspection = inspection.copy(
             id = newId,
+            deleted = false,
+            deletedAt = null,
             updatedAt = System.currentTimeMillis()
         )
 
-        val existingIndex = currentList.indexOfFirst { it.id == newId }
+        val existingIndex = fullList.indexOfFirst { it.id == newId }
 
         if (existingIndex >= 0) {
-            currentList[existingIndex] = newInspection
+            fullList[existingIndex] = newInspection
         } else {
-            currentList.add(0, newInspection)
+            fullList.add(0, newInspection)
         }
 
-        _inspections.value = currentList
-        saveInspections(currentList)
+        saveInspections(fullList)
+        _inspections.value = fullList.filter { !it.deleted && it.deletedAt == null }
+
         syncInspectionAndPdf(newInspection)
 
         return newId
@@ -135,7 +147,7 @@ class InspectionRepository private constructor(context: Context) {
 
             currentList[index] = updatedInspection
 
-            _inspections.value = currentList
+            _inspections.value = currentList.filter { !it.deleted && it.deletedAt == null }
             saveInspections(currentList)
             syncInspectionAndPdf(updatedInspection)
         }
@@ -166,7 +178,7 @@ class InspectionRepository private constructor(context: Context) {
 
             currentList[index] = updatedInspection
 
-            _inspections.value = currentList
+            _inspections.value = currentList.filter { !it.deleted && it.deletedAt == null }
             saveInspections(currentList)
             syncInspectionAndPdf(updatedInspection)
         }
@@ -189,7 +201,7 @@ class InspectionRepository private constructor(context: Context) {
 
             currentList[index] = updatedInspection
 
-            _inspections.value = currentList
+            _inspections.value = currentList.filter { !it.deleted && it.deletedAt == null }
             saveInspections(currentList)
             syncInspectionAndPdf(updatedInspection)
         }
@@ -206,42 +218,46 @@ class InspectionRepository private constructor(context: Context) {
 
             currentList[index] = updatedInspection
 
-            _inspections.value = currentList
+            _inspections.value = currentList.filter { !it.deleted && it.deletedAt == null }
             saveInspections(currentList)
             syncInspectionAndPdf(updatedInspection)
         }
     }
 
-  fun deleteInspectionById(id: Long) {
-    val currentList = _inspections.value.toMutableList()
+    fun deleteInspectionById(id: Long) {
+        val savedListData = prefs.getString(inspectionsKey, "[]") ?: "[]"
+        val fullList = try {
+            json.decodeFromString<List<Inspection>>(savedListData).toMutableList()
+        } catch (e: Exception) {
+            _inspections.value.toMutableList()
+        }
 
-    val inspectionIndex = currentList.indexOfFirst { it.id == id }
+        val inspectionIndex = fullList.indexOfFirst { it.id == id }
 
-    if (inspectionIndex >= 0) {
+        if (inspectionIndex >= 0) {
+            val updatedInspection = fullList[inspectionIndex].copy(
+                deleted = true,
+                deletedAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+            )
 
-        val inspection = currentList[inspectionIndex]
+            fullList[inspectionIndex] = updatedInspection
 
-        val updatedInspection = inspection.copy(
-            updatedAt = System.currentTimeMillis(),
-            deleted = true,
-            deletedAt = System.currentTimeMillis()
-        )
+            saveInspections(fullList)
+            _inspections.value = fullList.filter { !it.deleted && it.deletedAt == null }
 
-        currentList[inspectionIndex] = updatedInspection
-
-        _inspections.value = currentList
-        saveInspections(currentList)
-
-        syncInspectionAndPdf(updatedInspection)
+            syncToFirebase(updatedInspection)
+        }
     }
-}
 
     fun getInspectionCount(): Flow<Int> =
-        inspections.map { it.size }
+        inspections.map { list ->
+            list.count { !it.deleted && it.deletedAt == null }
+        }
 
     fun getInspectionCountByStatus(status: InspectionStatus): Flow<Int> =
         inspections.map { list ->
-            list.count { it.status == status }
+            list.count { !it.deleted && it.deletedAt == null && it.status == status }
         }
 
     companion object {
