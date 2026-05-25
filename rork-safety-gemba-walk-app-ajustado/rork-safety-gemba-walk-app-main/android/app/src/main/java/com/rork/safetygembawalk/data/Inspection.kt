@@ -18,6 +18,9 @@ data class Inspection(
 
     val status: InspectionStatus = InspectionStatus.PENDING,
 
+    val deleted: Boolean = false,
+    val deletedAt: Long? = null,
+
     val actions: List<InspectionActionItem> = emptyList()
 )
 
