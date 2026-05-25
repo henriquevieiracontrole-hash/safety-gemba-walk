@@ -212,13 +212,29 @@ class InspectionRepository private constructor(context: Context) {
         }
     }
 
-    fun deleteInspectionById(id: Long) {
-        val currentList = _inspections.value.toMutableList()
-        currentList.removeAll { it.id == id }
+  fun deleteInspectionById(id: Long) {
+    val currentList = _inspections.value.toMutableList()
+
+    val inspectionIndex = currentList.indexOfFirst { it.id == id }
+
+    if (inspectionIndex >= 0) {
+
+        val inspection = currentList[inspectionIndex]
+
+        val updatedInspection = inspection.copy(
+            updatedAt = System.currentTimeMillis(),
+            deleted = true,
+            deletedAt = System.currentTimeMillis()
+        )
+
+        currentList[inspectionIndex] = updatedInspection
 
         _inspections.value = currentList
         saveInspections(currentList)
+
+        syncInspectionAndPdf(updatedInspection)
     }
+}
 
     fun getInspectionCount(): Flow<Int> =
         inspections.map { it.size }
