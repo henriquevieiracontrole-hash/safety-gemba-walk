@@ -32,6 +32,7 @@ sealed interface HomeAction {
 }
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
+
     private val repository = InspectionRepository.getInstance(application)
 
     private val _uiState = MutableStateFlow(HomeUiState(isLoading = true))
@@ -41,89 +42,139 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val selectedFilter = MutableStateFlow<InspectionStatus?>(null)
 
     init {
+        observeInspections()
+    }
+
+    private fun observeInspections() {
+
         viewModelScope.launch {
+
             combine(
                 repository.getAllInspections(),
                 searchQuery,
                 selectedFilter
             ) { inspections, query, filter ->
 
-                val filteredInspections = inspections.filter { inspection ->
+                val activeInspections = inspections.filter { inspection ->
+                    !inspection.deleted &&
+                    inspection.deletedAt == null
+                }
+
+                val filteredInspections = activeInspections.filter { inspection ->
+
                     val firstAction = inspection.actions.firstOrNull()
 
-                    val matchesSearch = query.isBlank() ||
+                    val matchesSearch =
+                        query.isBlank() ||
+
                         inspection.title.contains(query, ignoreCase = true) ||
+
                         inspection.location.contains(query, ignoreCase = true) ||
+
                         inspection.inspectorName.contains(query, ignoreCase = true) ||
+
                         inspection.actions.any { action ->
+
                             action.unsafeCondition.contains(query, ignoreCase = true) ||
-                                action.description.contains(query, ignoreCase = true) ||
-                                action.immediateAction.contains(query, ignoreCase = true)
+
+                            action.description.contains(query, ignoreCase = true) ||
+
+                            action.immediateAction.contains(query, ignoreCase = true)
                         }
 
-                    val matchesFilter = filter == null ||
+                    val matchesFilter =
+                        filter == null ||
+
                         inspection.status == filter ||
+
                         inspection.actions.any { it.status == filter } ||
+
                         firstAction?.status == filter
 
                     matchesSearch && matchesFilter
                 }
 
-                val total = inspections.size
+                val total = activeInspections.size
 
-                val pending = inspections.count { inspection ->
+                val pending = activeInspections.count { inspection ->
+
                     inspection.status == InspectionStatus.PENDING ||
-                        inspection.actions.any { it.status == InspectionStatus.PENDING }
+
+                    inspection.actions.any {
+                        it.status == InspectionStatus.PENDING
+                    }
                 }
 
-                val completed = inspections.count { inspection ->
+                val completed = activeInspections.count { inspection ->
+
                     inspection.status == InspectionStatus.COMPLETED ||
-                        (
-                            inspection.actions.isNotEmpty() &&
-                                inspection.actions.all { it.status == InspectionStatus.COMPLETED }
-                        )
+
+                    (
+                        inspection.actions.isNotEmpty() &&
+
+                        inspection.actions.all {
+                            it.status == InspectionStatus.COMPLETED
+                        }
+                    )
                 }
 
                 HomeUiState(
-                    inspections = filteredInspections,
+                    inspections = filteredInspections.sortedByDescending { it.createdAt },
+
                     isLoading = false,
+
                     searchQuery = query,
+
                     selectedFilter = filter,
+
                     totalCount = total,
+
                     pendingCount = pending,
+
                     completedCount = completed
                 )
+
             }.collect { state ->
+
                 _uiState.value = state
             }
         }
     }
 
     fun onAction(action: HomeAction) {
+
         when (action) {
+
             is HomeAction.OnSearchQueryChange -> {
+
                 searchQuery.value = action.query
             }
 
             is HomeAction.OnFilterSelect -> {
+
                 selectedFilter.value = action.status
             }
 
             is HomeAction.DeleteInspection -> {
+
                 repository.deleteInspectionById(action.inspection.id)
             }
 
             is HomeAction.Refresh -> {
-                // Flow atualiza automaticamente
+                // atualização automática pelo Flow
             }
         }
     }
 
     companion object {
+
         fun Factory(application: Application): ViewModelProvider.Factory {
+
             return object : ViewModelProvider.Factory {
+
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
+
                     return HomeViewModel(application) as T
                 }
             }
