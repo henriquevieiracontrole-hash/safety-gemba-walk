@@ -66,6 +66,7 @@ sealed interface InspectionAction {
 }
 
 class InspectionViewModel(application: Application) : AndroidViewModel(application) {
+
     private val repository = InspectionRepository.getInstance(application)
     private val userRepo = com.rork.safetygembawalk.data.UserRepository(application)
     private val context = application
@@ -85,41 +86,41 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onAction(action: InspectionAction) {
         when (action) {
-            is InspectionAction.UpdateUnsafeCondition -> _formState.value =
-                _formState.value.copy(unsafeCondition = action.value)
+            is InspectionAction.UpdateUnsafeCondition ->
+                _formState.value = _formState.value.copy(unsafeCondition = action.value)
 
-            is InspectionAction.UpdateDescription -> _formState.value =
-                _formState.value.copy(description = action.value)
+            is InspectionAction.UpdateDescription ->
+                _formState.value = _formState.value.copy(description = action.value)
 
-            is InspectionAction.UpdateImmediateAction -> _formState.value =
-                _formState.value.copy(immediateAction = action.value)
+            is InspectionAction.UpdateImmediateAction ->
+                _formState.value = _formState.value.copy(immediateAction = action.value)
 
-            is InspectionAction.UpdateHasWorkOrder -> _formState.value =
-                _formState.value.copy(
+            is InspectionAction.UpdateHasWorkOrder ->
+                _formState.value = _formState.value.copy(
                     hasWorkOrder = action.value,
                     workOrderOpenDate = if (action.value) System.currentTimeMillis() else null
                 )
 
-            is InspectionAction.UpdateWorkOrderNumber -> _formState.value =
-                _formState.value.copy(workOrderNumber = action.value)
+            is InspectionAction.UpdateWorkOrderNumber ->
+                _formState.value = _formState.value.copy(workOrderNumber = action.value)
 
-            is InspectionAction.UpdateWorkOrderOpenDate -> _formState.value =
-                _formState.value.copy(workOrderOpenDate = action.value)
+            is InspectionAction.UpdateWorkOrderOpenDate ->
+                _formState.value = _formState.value.copy(workOrderOpenDate = action.value)
 
-            is InspectionAction.UpdateCategory -> _formState.value =
-                _formState.value.copy(category = action.value)
+            is InspectionAction.UpdateCategory ->
+                _formState.value = _formState.value.copy(category = action.value)
 
-            is InspectionAction.UpdateIsImmediateAction -> _formState.value =
-                _formState.value.copy(isImmediateAction = action.value)
+            is InspectionAction.UpdateIsImmediateAction ->
+                _formState.value = _formState.value.copy(isImmediateAction = action.value)
 
-            is InspectionAction.UpdateLocation -> _formState.value =
-                _formState.value.copy(location = action.value)
+            is InspectionAction.UpdateLocation ->
+                _formState.value = _formState.value.copy(location = action.value)
 
-            is InspectionAction.UpdateInspectorName -> _formState.value =
-                _formState.value.copy(inspectorName = action.value)
+            is InspectionAction.UpdateInspectorName ->
+                _formState.value = _formState.value.copy(inspectorName = action.value)
 
-            is InspectionAction.UpdateStatus -> _formState.value =
-                _formState.value.copy(status = action.value)
+            is InspectionAction.UpdateStatus ->
+                _formState.value = _formState.value.copy(status = action.value)
 
             is InspectionAction.SetBeforePhoto -> {
                 val path = saveImageToInternalStorage(action.uri, "before_")
@@ -137,27 +138,25 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
                 )
             }
 
-            is InspectionAction.RemoveBeforePhoto -> {
+            is InspectionAction.RemoveBeforePhoto ->
                 _formState.value = _formState.value.copy(
                     beforePhotoUri = null,
                     beforePhotoPath = null
                 )
-            }
 
-            is InspectionAction.RemoveAfterPhoto -> {
+            is InspectionAction.RemoveAfterPhoto ->
                 _formState.value = _formState.value.copy(
                     afterPhotoUri = null,
                     afterPhotoPath = null
                 )
-            }
 
             is InspectionAction.SaveInspection -> saveInspection()
             is InspectionAction.LoadInspection -> loadInspection(action.id)
             is InspectionAction.StartNewAction -> startNewAction(action.inspectionId)
             is InspectionAction.LoadAction -> loadAction(action.inspectionId, action.actionId)
 
-            is InspectionAction.ClearError -> _formState.value =
-                _formState.value.copy(errorMessage = null)
+            is InspectionAction.ClearError ->
+                _formState.value = _formState.value.copy(errorMessage = null)
 
             is InspectionAction.AnalyzeWithAi -> analyzeWithAi()
             is InspectionAction.ApplyAiAnalysis -> applyAiAnalysis(action.result)
@@ -244,6 +243,8 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             status = state.status
         )
 
+        var inspectionIdForPdf = currentInspectionId
+
         if (currentInspectionId == 0L) {
             val newActionId = System.currentTimeMillis()
 
@@ -257,61 +258,71 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             )
 
             repository.insertInspection(inspection)
+
+            inspectionIdForPdf = repository.getAllInspections().lastOrNull()?.id ?: 0L
+
         } else {
             val existing = repository.getInspectionById(currentInspectionId)
 
             if (existing != null) {
-                val updatedStatus =
-                    if (existing.actions.isNotEmpty() && existing.actions.all { it.status == InspectionStatus.COMPLETED }) {
-                        InspectionStatus.COMPLETED
-                    } else {
-                        InspectionStatus.IN_PROGRESS
-                    }
-
                 if (currentActionId == 0L) {
-
                     repository.addAction(currentInspectionId, actionItem)
-
-                    val refreshedInspection =
-                        repository.getInspectionById(currentInspectionId)
-
-                    if (refreshedInspection != null) {
-                        repository.updateInspection(
-                            refreshedInspection.copy(
-                                title = refreshedInspection.title.ifBlank {
-                                    state.unsafeCondition
-                                },
-                                location = state.location,
-                                inspectorName = state.inspectorName,
-                                status = updatedStatus
-                            )
-                        )
-                    }
-
                 } else {
-
                     repository.updateAction(currentInspectionId, actionItem)
+                }
 
-                    val refreshedInspection =
-                        repository.getInspectionById(currentInspectionId)
+                val refreshedInspection = repository.getInspectionById(currentInspectionId)
 
-                    if (refreshedInspection != null) {
-                        repository.updateInspection(
-                            refreshedInspection.copy(
-                                title = refreshedInspection.title.ifBlank {
-                                    state.unsafeCondition
-                                },
-                                location = state.location,
-                                inspectorName = state.inspectorName,
-                                status = updatedStatus
-                            )
+                if (refreshedInspection != null) {
+                    val updatedStatus =
+                        if (refreshedInspection.actions.isNotEmpty() &&
+                            refreshedInspection.actions.all { it.status == InspectionStatus.COMPLETED }
+                        ) {
+                            InspectionStatus.COMPLETED
+                        } else {
+                            InspectionStatus.IN_PROGRESS
+                        }
+
+                    repository.updateInspection(
+                        refreshedInspection.copy(
+                            title = refreshedInspection.title.ifBlank {
+                                state.unsafeCondition
+                            },
+                            location = state.location,
+                            inspectorName = state.inspectorName,
+                            status = updatedStatus
                         )
-                    }
+                    )
                 }
             }
         }
 
-        _formState.value = state.copy(isLoading = false, isSaved = true)
+        try {
+            val inspectionToExport =
+                if (inspectionIdForPdf > 0L) {
+                    repository.getInspectionById(inspectionIdForPdf)
+                } else {
+                    repository.getAllInspections().lastOrNull()
+                }
+
+            inspectionToExport?.let { inspection ->
+                val pdfGenerator = PdfReportGenerator(context)
+                val generatedPdfPath = pdfGenerator.generateReport(listOf(inspection))
+
+                repository.updateInspection(
+                    inspection.copy(
+                        pdfPath = generatedPdfPath
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        _formState.value = state.copy(
+            isLoading = false,
+            isSaved = true
+        )
     }
 
     private fun loadInspection(id: Long) {
