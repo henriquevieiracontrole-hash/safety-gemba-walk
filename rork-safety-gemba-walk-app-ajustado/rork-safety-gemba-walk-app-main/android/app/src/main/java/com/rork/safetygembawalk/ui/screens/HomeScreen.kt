@@ -191,10 +191,12 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(16.dp)
                 ) {
-                    items(
-                        items = uiState.inspections.sortedByDescending { it.createdAt },
-                        key = { it.id }
-                    ) { inspection ->
+                 items(
+    items = uiState.inspections
+        .filter { !it.deleted && it.deletedAt == null }
+        .sortedByDescending { it.createdAt },
+    key = { it.id }
+) { inspection ->
                         InspectionCard(
                             inspection = inspection,
                             onClick = { navController.navigate("inspection_detail/${inspection.id}") },
