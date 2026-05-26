@@ -141,15 +141,16 @@ class FirebaseSyncService {
             .addOnSuccessListener {
                 pdfRef.downloadUrl
                     .addOnSuccessListener { downloadUri ->
-                        db.collection("inspections")
-                            .document(inspection.id.toString())
-                            .update(
-                                mapOf(
-                                    "pdfUrl" to downloadUri.toString(),
-                                    "pdfFileName" to pdfFile.name,
-                                    "pdfUpdatedAt" to System.currentTimeMillis()
-                                )
-                            )
+                db.collection("inspections")
+    .document(inspection.id.toString())
+    .set(
+        mapOf(
+            "pdfUrl" to downloadUri.toString(),
+            "pdfFileName" to pdfFile.name,
+            "pdfUpdatedAt" to System.currentTimeMillis()
+        ),
+        com.google.firebase.firestore.SetOptions.merge()
+    )
                     }
             }
     }
