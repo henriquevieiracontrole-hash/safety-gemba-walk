@@ -246,10 +246,11 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
         var inspectionIdForPdf = currentInspectionId
 
         if (currentInspectionId == 0L) {
-            val newActionId = System.currentTimeMillis()
+            val newInspectionId = System.currentTimeMillis()
+            val newActionId = System.currentTimeMillis() + 1L
 
             val inspection = Inspection(
-                id = 0L,
+                id = newInspectionId,
                 title = state.unsafeCondition,
                 location = state.location,
                 inspectorName = state.inspectorName,
@@ -258,15 +259,17 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             )
 
             repository.insertInspection(inspection)
-
-            inspectionIdForPdf = repository.getAllInspections().lastOrNull()?.id ?: 0L
+            inspectionIdForPdf = newInspectionId
 
         } else {
             val existing = repository.getInspectionById(currentInspectionId)
 
             if (existing != null) {
                 if (currentActionId == 0L) {
-                    repository.addAction(currentInspectionId, actionItem)
+                    val newAction = actionItem.copy(
+                        id = System.currentTimeMillis()
+                    )
+                    repository.addAction(currentInspectionId, newAction)
                 } else {
                     repository.updateAction(currentInspectionId, actionItem)
                 }
@@ -294,26 +297,17 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
                         )
                     )
                 }
+
+                inspectionIdForPdf = currentInspectionId
             }
         }
 
         try {
-            val inspectionToExport =
-                if (inspectionIdForPdf > 0L) {
-                    repository.getInspectionById(inspectionIdForPdf)
-                } else {
-                    repository.getAllInspections().lastOrNull()
-                }
+            val inspectionToExport = repository.getInspectionById(inspectionIdForPdf)
 
-            inspectionToExport?.let { inspection ->
+            if (inspectionToExport != null) {
                 val pdfGenerator = PdfReportGenerator(context)
-                val generatedPdfPath = pdfGenerator.generateReport(listOf(inspection))
-
-                repository.updateInspection(
-                    inspection.copy(
-                        pdfPath = generatedPdfPath
-                    )
-                )
+                pdfGenerator.generateReport(listOf(inspectionToExport))
             }
         } catch (e: Exception) {
             e.printStackTrace()
