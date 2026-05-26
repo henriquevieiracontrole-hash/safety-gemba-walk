@@ -1,383 +1,241 @@
 package com.rork.safetygembawalk.viewmodels
 
 import android.app.Application
+import android.content.Intent
 import android.net.Uri
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.rork.safetygembawalk.data.AiAnalysisResult
-import com.rork.safetygembawalk.data.FirebaseSyncService
+import androidx.lifecycle.viewModelScope
 import com.rork.safetygembawalk.data.Inspection
-import com.rork.safetygembawalk.data.InspectionActionItem
 import com.rork.safetygembawalk.data.InspectionRepository
 import com.rork.safetygembawalk.data.InspectionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.io.File
-import java.io.FileOutputStream
-import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-data class InspectionFormState(
-    val unsafeCondition: String = "",
-    val description: String = "",
-    val immediateAction: String = "",
-    val hasWorkOrder: Boolean = false,
-    val workOrderNumber: String = "",
-    val workOrderOpenDate: Long? = null,
-    val category: String = "Segurança",
-    val isImmediateAction: Boolean = false,
-    val location: String = "",
-    val inspectorName: String = "",
-    val beforePhotoUri: Uri? = null,
-    val beforePhotoPath: String? = null,
-    val afterPhotoUri: Uri? = null,
-    val afterPhotoPath: String? = null,
-    val status: InspectionStatus = InspectionStatus.PENDING,
+data class ReportUiState(
+    val inspections: List<Inspection> = emptyList(),
     val isLoading: Boolean = false,
-    val isSaved: Boolean = false,
+    val pdfGenerated: Boolean = false,
+    val pptGenerated: Boolean = false,
+    val pdfFilePath: String? = null,
+    val pptFilePath: String? = null,
     val errorMessage: String? = null,
-    val isAnalyzing: Boolean = false,
-    val aiAnalysisResult: AiAnalysisResult? = null
+    val dateFrom: Long? = null,
+    val dateTo: Long? = null,
+    val statusFilter: InspectionStatus? = null
 )
 
-sealed interface InspectionAction {
-    data class UpdateUnsafeCondition(val value: String) : InspectionAction
-    data class UpdateDescription(val value: String) : InspectionAction
-    data class UpdateImmediateAction(val value: String) : InspectionAction
-    data class UpdateHasWorkOrder(val value: Boolean) : InspectionAction
-    data class UpdateWorkOrderNumber(val value: String) : InspectionAction
-    data class UpdateWorkOrderOpenDate(val value: Long?) : InspectionAction
-    data class UpdateCategory(val value: String) : InspectionAction
-    data class UpdateIsImmediateAction(val value: Boolean) : InspectionAction
-    data class UpdateLocation(val value: String) : InspectionAction
-    data class UpdateInspectorName(val value: String) : InspectionAction
-    data class UpdateStatus(val value: InspectionStatus) : InspectionAction
-    data class SetBeforePhoto(val uri: Uri) : InspectionAction
-    data class SetAfterPhoto(val uri: Uri) : InspectionAction
-    data object RemoveBeforePhoto : InspectionAction
-    data object RemoveAfterPhoto : InspectionAction
-    data object SaveInspection : InspectionAction
-    data class LoadInspection(val id: Long) : InspectionAction
-    data class StartNewAction(val inspectionId: Long) : InspectionAction
-    data class LoadAction(val inspectionId: Long, val actionId: Long) : InspectionAction
-    data object ClearError : InspectionAction
-    data object AnalyzeWithAi : InspectionAction
-    data class ApplyAiAnalysis(val result: AiAnalysisResult) : InspectionAction
+sealed interface ReportAction {
+    data class SetDateRange(val from: Long?, val to: Long?) : ReportAction
+    data class SetStatusFilter(val status: InspectionStatus?) : ReportAction
+    data object GeneratePdf : ReportAction
+    data object GeneratePpt : ReportAction
+    data object SendEmail : ReportAction
+    data object ClearError : ReportAction
+    data object ResetGenerated : ReportAction
 }
 
-class InspectionViewModel(application: Application) : AndroidViewModel(application) {
-
+class ReportViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = InspectionRepository.getInstance(application)
-    private val firebaseSyncService = FirebaseSyncService()
-    private val userRepo = com.rork.safetygembawalk.data.UserRepository(application)
     private val context = application
 
-    private val _formState = MutableStateFlow(InspectionFormState())
-    val formState: StateFlow<InspectionFormState> = _formState.asStateFlow()
-
-    private var currentInspectionId: Long = 0L
-    private var currentActionId: Long = 0L
+    private val _uiState = MutableStateFlow(ReportUiState())
+    val uiState: StateFlow<ReportUiState> = _uiState.asStateFlow()
 
     init {
-        val user = userRepo.getCurrentUser()
-        _formState.value = _formState.value.copy(
-            inspectorName = user?.fullName ?: ""
-        )
+        viewModelScope.launch {
+            repository.getAllInspections().collect { inspections ->
+                _uiState.value = _uiState.value.copy(inspections = inspections)
+            }
+        }
     }
 
-    fun onAction(action: InspectionAction) {
+    fun onAction(action: ReportAction) {
         when (action) {
-            is InspectionAction.UpdateUnsafeCondition ->
-                _formState.value = _formState.value.copy(unsafeCondition = action.value)
-
-            is InspectionAction.UpdateDescription ->
-                _formState.value = _formState.value.copy(description = action.value)
-
-            is InspectionAction.UpdateImmediateAction ->
-                _formState.value = _formState.value.copy(immediateAction = action.value)
-
-            is InspectionAction.UpdateHasWorkOrder ->
-                _formState.value = _formState.value.copy(
-                    hasWorkOrder = action.value,
-                    workOrderOpenDate = if (action.value) System.currentTimeMillis() else null
-                )
-
-            is InspectionAction.UpdateWorkOrderNumber ->
-                _formState.value = _formState.value.copy(workOrderNumber = action.value)
-
-            is InspectionAction.UpdateWorkOrderOpenDate ->
-                _formState.value = _formState.value.copy(workOrderOpenDate = action.value)
-
-            is InspectionAction.UpdateCategory ->
-                _formState.value = _formState.value.copy(category = action.value)
-
-            is InspectionAction.UpdateIsImmediateAction ->
-                _formState.value = _formState.value.copy(isImmediateAction = action.value)
-
-            is InspectionAction.UpdateLocation ->
-                _formState.value = _formState.value.copy(location = action.value)
-
-            is InspectionAction.UpdateInspectorName ->
-                _formState.value = _formState.value.copy(inspectorName = action.value)
-
-            is InspectionAction.UpdateStatus ->
-                _formState.value = _formState.value.copy(status = action.value)
-
-            is InspectionAction.SetBeforePhoto -> {
-                val path = saveImageToInternalStorage(action.uri, "before_")
-                _formState.value = _formState.value.copy(
-                    beforePhotoUri = action.uri,
-                    beforePhotoPath = path
+            is ReportAction.SetDateRange -> {
+                _uiState.value = _uiState.value.copy(
+                    dateFrom = action.from,
+                    dateTo = action.to
                 )
             }
 
-            is InspectionAction.SetAfterPhoto -> {
-                val path = saveImageToInternalStorage(action.uri, "after_")
-                _formState.value = _formState.value.copy(
-                    afterPhotoUri = action.uri,
-                    afterPhotoPath = path
-                )
+            is ReportAction.SetStatusFilter -> {
+                _uiState.value = _uiState.value.copy(statusFilter = action.status)
             }
 
-            is InspectionAction.RemoveBeforePhoto ->
-                _formState.value = _formState.value.copy(
-                    beforePhotoUri = null,
-                    beforePhotoPath = null
+            is ReportAction.GeneratePdf -> generatePdf()
+            is ReportAction.GeneratePpt -> generatePpt()
+            is ReportAction.SendEmail -> sendEmail()
+
+            is ReportAction.ClearError -> {
+                _uiState.value = _uiState.value.copy(errorMessage = null)
+            }
+
+            is ReportAction.ResetGenerated -> {
+                _uiState.value = _uiState.value.copy(
+                    pdfGenerated = false,
+                    pptGenerated = false
                 )
-
-            is InspectionAction.RemoveAfterPhoto ->
-                _formState.value = _formState.value.copy(
-                    afterPhotoUri = null,
-                    afterPhotoPath = null
-                )
-
-            is InspectionAction.SaveInspection -> saveInspection()
-            is InspectionAction.LoadInspection -> loadInspection(action.id)
-            is InspectionAction.StartNewAction -> startNewAction(action.inspectionId)
-            is InspectionAction.LoadAction -> loadAction(action.inspectionId, action.actionId)
-
-            is InspectionAction.ClearError ->
-                _formState.value = _formState.value.copy(errorMessage = null)
-
-            is InspectionAction.AnalyzeWithAi -> analyzeWithAi()
-            is InspectionAction.ApplyAiAnalysis -> applyAiAnalysis(action.result)
+            }
         }
     }
 
-    private fun startNewAction(inspectionId: Long) {
-        currentInspectionId = inspectionId
-        currentActionId = 0L
+    private fun getFilteredInspections(): List<Inspection> {
+        val state = _uiState.value
 
-        val inspection = repository.getInspectionById(inspectionId)
-        val user = userRepo.getCurrentUser()
+        return state.inspections.filter { inspection ->
+            val matchesDateFrom =
+                state.dateFrom == null || inspection.createdAt >= state.dateFrom
 
-        _formState.value = InspectionFormState(
-            location = inspection?.location ?: "",
-            inspectorName = inspection?.inspectorName ?: user?.fullName ?: "",
-            category = "Segurança"
-        )
+            val matchesDateTo =
+                state.dateTo == null || inspection.createdAt <= state.dateTo
+
+            val matchesStatus =
+                state.statusFilter == null || inspection.status == state.statusFilter
+
+            matchesDateFrom && matchesDateTo && matchesStatus
+        }
     }
 
-    private fun loadAction(inspectionId: Long, actionId: Long) {
-        val inspection = repository.getInspectionById(inspectionId) ?: return
-        val action = inspection.actions.firstOrNull { it.id == actionId } ?: return
-
-        currentInspectionId = inspection.id
-        currentActionId = action.id
-
-        _formState.value = InspectionFormState(
-            unsafeCondition = action.unsafeCondition,
-            description = action.description,
-            immediateAction = action.immediateAction,
-            hasWorkOrder = action.hasWorkOrder,
-            workOrderNumber = action.workOrderNumber ?: "",
-            workOrderOpenDate = action.workOrderOpenDate,
-            category = action.category,
-            isImmediateAction = action.isImmediateAction,
-            location = inspection.location,
-            inspectorName = inspection.inspectorName,
-            beforePhotoPath = action.beforePhotoPath,
-            afterPhotoPath = action.afterPhotoPath,
-            status = action.status
+    private fun generatePdf() {
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            pdfGenerated = false
         )
-    }
 
-    private fun saveImageToInternalStorage(uri: Uri, prefix: String): String? {
-        return try {
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val filename = "${prefix}${UUID.randomUUID()}.jpg"
-            val file = File(context.filesDir, filename)
+        try {
+            val inspections = getFilteredInspections()
 
-            FileOutputStream(file).use { outputStream ->
-                inputStream?.copyTo(outputStream)
+            if (inspections.isEmpty()) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Nenhuma inspeção encontrada para os filtros selecionados"
+                )
+                return
             }
 
-            inputStream?.close()
-            file.absolutePath
+            val pdfGenerator = PdfReportGenerator(context)
+            val filePath = pdfGenerator.generateReport(inspections)
+
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                pdfGenerated = true,
+                pdfFilePath = filePath
+            )
+
         } catch (e: Exception) {
-            null
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                errorMessage = "Erro ao gerar PDF: ${e.message}"
+            )
         }
     }
 
-    private fun saveInspection() {
-        val state = _formState.value
+    private fun generatePpt() {
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            pptGenerated = false
+        )
 
-        if (state.unsafeCondition.isBlank() || state.description.isBlank()) {
-            _formState.value = state.copy(errorMessage = "Preencha os campos obrigatórios")
+        try {
+            val inspections = getFilteredInspections()
+
+            if (inspections.isEmpty()) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Nenhuma inspeção encontrada para os filtros selecionados"
+                )
+                return
+            }
+
+            val pptGenerator = PptReportGenerator(context)
+            val filePath = pptGenerator.generateReport(inspections)
+
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                pptGenerated = true,
+                pptFilePath = filePath
+            )
+
+        } catch (e: Exception) {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                errorMessage = "Erro ao gerar PPT: ${e.message}"
+            )
+        }
+    }
+
+    private fun sendEmail() {
+        val state = _uiState.value
+
+        if (!state.pdfGenerated && !state.pptGenerated) {
+            _uiState.value = state.copy(
+                errorMessage = "Gere um relatório primeiro (PDF ou PPT)"
+            )
             return
         }
 
-        _formState.value = state.copy(isLoading = true)
+        val attachments = mutableListOf<Uri>()
 
-        val actionItem = InspectionActionItem(
-            id = currentActionId,
-            unsafeCondition = state.unsafeCondition,
-            description = state.description,
-            immediateAction = state.immediateAction,
-            hasWorkOrder = state.hasWorkOrder,
-            workOrderNumber = state.workOrderNumber.takeIf { it.isNotBlank() },
-            workOrderOpenDate = state.workOrderOpenDate,
-            category = state.category,
-            isImmediateAction = state.isImmediateAction,
-            beforePhotoPath = state.beforePhotoPath,
-            afterPhotoPath = state.afterPhotoPath,
-            status = state.status
-        )
+        state.pdfFilePath?.let { path ->
+            val file = File(path)
+            if (file.exists()) {
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                attachments.add(uri)
+            }
+        }
 
-        var inspectionIdForPdf = currentInspectionId
+        state.pptFilePath?.let { path ->
+            val file = File(path)
+            if (file.exists()) {
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                attachments.add(uri)
+            }
+        }
 
-        if (currentInspectionId == 0L) {
-            val newInspectionId = System.currentTimeMillis()
-            val newActionId = System.currentTimeMillis() + 1L
+        if (attachments.isEmpty()) {
+            _uiState.value = state.copy(errorMessage = "Nenhum arquivo para enviar")
+            return
+        }
 
-            val inspection = Inspection(
-                id = newInspectionId,
-                title = state.unsafeCondition,
-                location = state.location,
-                inspectorName = state.inspectorName,
-                status = InspectionStatus.IN_PROGRESS,
-                actions = listOf(actionItem.copy(id = newActionId))
+        val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        val currentDate = dateFormat.format(Date())
+
+        val emailIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "message/rfc822"
+            putExtra(
+                Intent.EXTRA_SUBJECT,
+                "Relatório Safety Gemba Walk - $currentDate"
             )
-
-            repository.insertInspection(inspection)
-            inspectionIdForPdf = newInspectionId
-
-        } else {
-            val existing = repository.getInspectionById(currentInspectionId)
-
-            if (existing != null) {
-                if (currentActionId == 0L) {
-                    val newAction = actionItem.copy(
-                        id = System.currentTimeMillis()
-                    )
-                    repository.addAction(currentInspectionId, newAction)
-                } else {
-                    repository.updateAction(currentInspectionId, actionItem)
-                }
-
-                val refreshedInspection = repository.getInspectionById(currentInspectionId)
-
-                if (refreshedInspection != null) {
-                    val updatedStatus =
-                        if (refreshedInspection.actions.isNotEmpty() &&
-                            refreshedInspection.actions.all { it.status == InspectionStatus.COMPLETED }
-                        ) {
-                            InspectionStatus.COMPLETED
-                        } else {
-                            InspectionStatus.IN_PROGRESS
-                        }
-
-                    repository.updateInspection(
-                        refreshedInspection.copy(
-                            title = refreshedInspection.title.ifBlank {
-                                state.unsafeCondition
-                            },
-                            location = state.location,
-                            inspectorName = state.inspectorName,
-                            status = updatedStatus
-                        )
-                    )
-                }
-
-                inspectionIdForPdf = currentInspectionId
-            }
+            putExtra(
+                Intent.EXTRA_TEXT,
+                "Segue em anexo o relatório de inspeções de segurança (Safety Gemba Walk).\n\n" +
+                    "Data de geração: $currentDate\n" +
+                    "Total de inspeções no relatório: ${getFilteredInspections().size}"
+            )
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(attachments))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
 
-        try {
-            val inspectionToExport = repository.getInspectionById(inspectionIdForPdf)
-
-            if (inspectionToExport != null) {
-                val pdfGenerator = PdfReportGenerator(context)
-
-                val generatedPdfPath = pdfGenerator.generateReport(
-                    listOf(inspectionToExport)
-                )
-
-                firebaseSyncService.uploadInspectionPdf(
-                    inspection = inspectionToExport,
-                    pdfFile = File(generatedPdfPath)
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
-        _formState.value = state.copy(
-            isLoading = false,
-            isSaved = true
-        )
-    }
-
-    private fun loadInspection(id: Long) {
-        if (id == 0L) return
-
-        val inspection = repository.getInspectionById(id) ?: return
-        currentInspectionId = inspection.id
-
-        val firstAction = inspection.actions.firstOrNull()
-        currentActionId = firstAction?.id ?: 0L
-
-        _formState.value = InspectionFormState(
-            unsafeCondition = firstAction?.unsafeCondition ?: inspection.title,
-            description = firstAction?.description ?: "",
-            immediateAction = firstAction?.immediateAction ?: "",
-            hasWorkOrder = firstAction?.hasWorkOrder ?: false,
-            workOrderNumber = firstAction?.workOrderNumber ?: "",
-            workOrderOpenDate = firstAction?.workOrderOpenDate,
-            category = firstAction?.category ?: "Segurança",
-            isImmediateAction = firstAction?.isImmediateAction ?: false,
-            location = inspection.location,
-            inspectorName = inspection.inspectorName,
-            beforePhotoPath = firstAction?.beforePhotoPath,
-            afterPhotoPath = firstAction?.afterPhotoPath,
-            status = firstAction?.status ?: inspection.status
-        )
-    }
-
-    fun resetForm() {
-        currentInspectionId = 0L
-        currentActionId = 0L
-
-        val user = userRepo.getCurrentUser()
-        _formState.value = InspectionFormState(
-            inspectorName = user?.fullName ?: ""
-        )
-    }
-
-    private fun analyzeWithAi() {
-        _formState.value = _formState.value.copy(
-            isAnalyzing = false,
-            errorMessage = "Função de IA removida nesta versão"
-        )
-    }
-
-    private fun applyAiAnalysis(result: AiAnalysisResult) {
-        _formState.value = _formState.value.copy(
-            unsafeCondition = result.riskDescription.take(100),
-            description = result.riskDescription,
-            aiAnalysisResult = null
-        )
+        val chooser = Intent.createChooser(emailIntent, "Enviar relatório via:")
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(chooser)
     }
 
     companion object {
@@ -385,7 +243,7 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             return object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return InspectionViewModel(application) as T
+                    return ReportViewModel(application) as T
                 }
             }
         }
