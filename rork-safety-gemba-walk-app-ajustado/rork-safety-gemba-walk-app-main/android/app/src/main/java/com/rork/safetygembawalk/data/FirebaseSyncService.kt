@@ -2,6 +2,7 @@ package com.rork.safetygembawalk.data
 
 import android.net.Uri
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.storage.FirebaseStorage
 import java.io.File
 
@@ -89,6 +90,7 @@ class FirebaseSyncService {
             "title" to inspection.title,
             "location" to inspection.location,
             "inspector" to inspection.inspectorName,
+            "inspectorName" to inspection.inspectorName,
             "status" to inspection.status.name,
             "createdAt" to inspection.createdAt,
             "updatedAt" to inspection.updatedAt,
@@ -123,7 +125,7 @@ class FirebaseSyncService {
 
         db.collection("inspections")
             .document(inspection.id.toString())
-            .set(data)
+            .set(data, SetOptions.merge())
     }
 
     fun uploadInspectionPdf(
@@ -141,17 +143,23 @@ class FirebaseSyncService {
             .addOnSuccessListener {
                 pdfRef.downloadUrl
                     .addOnSuccessListener { downloadUri ->
-                db.collection("inspections")
-    .document(inspection.id.toString())
-    .set(
-        mapOf(
-            "pdfUrl" to downloadUri.toString(),
-            "pdfFileName" to pdfFile.name,
-            "pdfUpdatedAt" to System.currentTimeMillis()
-        ),
-        com.google.firebase.firestore.SetOptions.merge()
-    )
+                        db.collection("inspections")
+                            .document(inspection.id.toString())
+                            .set(
+                                mapOf(
+                                    "pdfUrl" to downloadUri.toString(),
+                                    "pdfFileName" to pdfFile.name,
+                                    "pdfUpdatedAt" to System.currentTimeMillis()
+                                ),
+                                SetOptions.merge()
+                            )
                     }
+                    .addOnFailureListener {
+                        it.printStackTrace()
+                    }
+            }
+            .addOnFailureListener {
+                it.printStackTrace()
             }
     }
 }
