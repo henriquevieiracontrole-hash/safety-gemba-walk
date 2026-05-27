@@ -1,368 +1,274 @@
-package com.rork.safetygembawalk.viewmodels
+package com.rork.safetygembawalk.data
 
-import android.app.Application
-import android.net.Uri
-import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import com.rork.safetygembawalk.data.AiAnalysisResult
-import com.rork.safetygembawalk.data.Inspection
-import com.rork.safetygembawalk.data.InspectionActionItem
-import com.rork.safetygembawalk.data.InspectionRepository
-import com.rork.safetygembawalk.data.InspectionStatus
+import android.content.Context
+import android.content.SharedPreferences
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import com.rork.safetygembawalk.viewmodels.PdfReportGenerator
 import java.io.File
-import java.io.FileOutputStream
-import java.util.UUID
 
-data class InspectionFormState(
-    val unsafeCondition: String = "",
-    val description: String = "",
-    val immediateAction: String = "",
-    val hasWorkOrder: Boolean = false,
-    val workOrderNumber: String = "",
-    val workOrderOpenDate: Long? = null,
-    val category: String = "Segurança",
-    val isImmediateAction: Boolean = false,
-    val location: String = "",
-    val inspectorName: String = "",
-    val beforePhotoUri: Uri? = null,
-    val beforePhotoPath: String? = null,
-    val afterPhotoUri: Uri? = null,
-    val afterPhotoPath: String? = null,
-    val status: InspectionStatus = InspectionStatus.PENDING,
-    val isLoading: Boolean = false,
-    val isSaved: Boolean = false,
-    val errorMessage: String? = null,
-    val isAnalyzing: Boolean = false,
-    val aiAnalysisResult: AiAnalysisResult? = null
-)
+class InspectionRepository private constructor(context: Context) {
+    private val appContext = context.applicationContext
+    private val json = Json { ignoreUnknownKeys = true }
+    private val firebaseSyncService = FirebaseSyncService()
 
-sealed interface InspectionAction {
-    data class UpdateUnsafeCondition(val value: String) : InspectionAction
-    data class UpdateDescription(val value: String) : InspectionAction
-    data class UpdateImmediateAction(val value: String) : InspectionAction
-    data class UpdateHasWorkOrder(val value: Boolean) : InspectionAction
-    data class UpdateWorkOrderNumber(val value: String) : InspectionAction
-    data class UpdateWorkOrderOpenDate(val value: Long?) : InspectionAction
-    data class UpdateCategory(val value: String) : InspectionAction
-    data class UpdateIsImmediateAction(val value: Boolean) : InspectionAction
-    data class UpdateLocation(val value: String) : InspectionAction
-    data class UpdateInspectorName(val value: String) : InspectionAction
-    data class UpdateStatus(val value: InspectionStatus) : InspectionAction
-    data class SetBeforePhoto(val uri: Uri) : InspectionAction
-    data class SetAfterPhoto(val uri: Uri) : InspectionAction
-    data object RemoveBeforePhoto : InspectionAction
-    data object RemoveAfterPhoto : InspectionAction
-    data object SaveInspection : InspectionAction
-    data class LoadInspection(val id: Long) : InspectionAction
-    data class StartNewAction(val inspectionId: Long) : InspectionAction
-    data class LoadAction(val inspectionId: Long, val actionId: Long) : InspectionAction
-    data object ClearError : InspectionAction
-    data object AnalyzeWithAi : InspectionAction
-    data class ApplyAiAnalysis(val result: AiAnalysisResult) : InspectionAction
-}
+    private val prefs: SharedPreferences =
+        appContext.getSharedPreferences("inspections", Context.MODE_PRIVATE)
 
-class InspectionViewModel(application: Application) : AndroidViewModel(application) {
+    private val inspectionsKey = "inspections_list"
 
-    private val repository = InspectionRepository.getInstance(application)
-    private val userRepo = com.rork.safetygembawalk.data.UserRepository(application)
-    private val context = application
-
-    private val _formState = MutableStateFlow(InspectionFormState())
-    val formState: StateFlow<InspectionFormState> = _formState.asStateFlow()
-
-    private var currentInspectionId: Long = 0L
-    private var currentActionId: Long = 0L
+    private val _inspections = MutableStateFlow<List<Inspection>>(emptyList())
+    val inspections: StateFlow<List<Inspection>> = _inspections.asStateFlow()
 
     init {
-        val user = userRepo.getCurrentUser()
-        _formState.value = _formState.value.copy(
-            inspectorName = user?.fullName ?: ""
-        )
+        loadInspections()
     }
 
-    fun onAction(action: InspectionAction) {
-        when (action) {
-            is InspectionAction.UpdateUnsafeCondition ->
-                _formState.value = _formState.value.copy(unsafeCondition = action.value)
-
-            is InspectionAction.UpdateDescription ->
-                _formState.value = _formState.value.copy(description = action.value)
-
-            is InspectionAction.UpdateImmediateAction ->
-                _formState.value = _formState.value.copy(immediateAction = action.value)
-
-            is InspectionAction.UpdateHasWorkOrder ->
-                _formState.value = _formState.value.copy(
-                    hasWorkOrder = action.value,
-                    workOrderOpenDate = if (action.value) System.currentTimeMillis() else null
-                )
-
-            is InspectionAction.UpdateWorkOrderNumber ->
-                _formState.value = _formState.value.copy(workOrderNumber = action.value)
-
-            is InspectionAction.UpdateWorkOrderOpenDate ->
-                _formState.value = _formState.value.copy(workOrderOpenDate = action.value)
-
-            is InspectionAction.UpdateCategory ->
-                _formState.value = _formState.value.copy(category = action.value)
-
-            is InspectionAction.UpdateIsImmediateAction ->
-                _formState.value = _formState.value.copy(isImmediateAction = action.value)
-
-            is InspectionAction.UpdateLocation ->
-                _formState.value = _formState.value.copy(location = action.value)
-
-            is InspectionAction.UpdateInspectorName ->
-                _formState.value = _formState.value.copy(inspectorName = action.value)
-
-            is InspectionAction.UpdateStatus ->
-                _formState.value = _formState.value.copy(status = action.value)
-
-            is InspectionAction.SetBeforePhoto -> {
-                val path = saveImageToInternalStorage(action.uri, "before_")
-                _formState.value = _formState.value.copy(
-                    beforePhotoUri = action.uri,
-                    beforePhotoPath = path
-                )
-            }
-
-            is InspectionAction.SetAfterPhoto -> {
-                val path = saveImageToInternalStorage(action.uri, "after_")
-                _formState.value = _formState.value.copy(
-                    afterPhotoUri = action.uri,
-                    afterPhotoPath = path
-                )
-            }
-
-            is InspectionAction.RemoveBeforePhoto ->
-                _formState.value = _formState.value.copy(
-                    beforePhotoUri = null,
-                    beforePhotoPath = null
-                )
-
-            is InspectionAction.RemoveAfterPhoto ->
-                _formState.value = _formState.value.copy(
-                    afterPhotoUri = null,
-                    afterPhotoPath = null
-                )
-
-            is InspectionAction.SaveInspection -> saveInspection()
-            is InspectionAction.LoadInspection -> loadInspection(action.id)
-            is InspectionAction.StartNewAction -> startNewAction(action.inspectionId)
-            is InspectionAction.LoadAction -> loadAction(action.inspectionId, action.actionId)
-
-            is InspectionAction.ClearError ->
-                _formState.value = _formState.value.copy(errorMessage = null)
-
-            is InspectionAction.AnalyzeWithAi -> analyzeWithAi()
-            is InspectionAction.ApplyAiAnalysis -> applyAiAnalysis(action.result)
-        }
-    }
-
-    private fun startNewAction(inspectionId: Long) {
-        currentInspectionId = inspectionId
-        currentActionId = 0L
-
-        val inspection = repository.getInspectionById(inspectionId)
-        val user = userRepo.getCurrentUser()
-
-        _formState.value = InspectionFormState(
-            location = inspection?.location ?: "",
-            inspectorName = inspection?.inspectorName ?: user?.fullName ?: "",
-            category = "Segurança"
-        )
-    }
-
-    private fun loadAction(inspectionId: Long, actionId: Long) {
-        val inspection = repository.getInspectionById(inspectionId) ?: return
-        val action = inspection.actions.firstOrNull { it.id == actionId } ?: return
-
-        currentInspectionId = inspection.id
-        currentActionId = action.id
-
-        _formState.value = InspectionFormState(
-            unsafeCondition = action.unsafeCondition,
-            description = action.description,
-            immediateAction = action.immediateAction,
-            hasWorkOrder = action.hasWorkOrder,
-            workOrderNumber = action.workOrderNumber ?: "",
-            workOrderOpenDate = action.workOrderOpenDate,
-            category = action.category,
-            isImmediateAction = action.isImmediateAction,
-            location = inspection.location,
-            inspectorName = inspection.inspectorName,
-            beforePhotoPath = action.beforePhotoPath,
-            afterPhotoPath = action.afterPhotoPath,
-            status = action.status
-        )
-    }
-
-    private fun saveImageToInternalStorage(uri: Uri, prefix: String): String? {
-        return try {
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val filename = "${prefix}${UUID.randomUUID()}.jpg"
-            val file = File(context.filesDir, filename)
-
-            FileOutputStream(file).use { outputStream ->
-                inputStream?.copyTo(outputStream)
-            }
-
-            inputStream?.close()
-            file.absolutePath
+    private fun loadInspections() {
+        val data = prefs.getString(inspectionsKey, "[]") ?: "[]"
+        _inspections.value = try {
+            json.decodeFromString<List<Inspection>>(data)
+                .filter { !it.deleted && it.deletedAt == null }
         } catch (e: Exception) {
-            null
+            emptyList()
         }
     }
 
-    private fun saveInspection() {
-        val state = _formState.value
+    private fun saveInspections(list: List<Inspection>) {
+        prefs.edit().putString(inspectionsKey, json.encodeToString(list)).apply()
+    }
 
-        if (state.unsafeCondition.isBlank() || state.description.isBlank()) {
-            _formState.value = state.copy(errorMessage = "Preencha os campos obrigatórios")
-            return
+    private fun syncToFirebase(inspection: Inspection) {
+        try {
+            firebaseSyncService.syncInspection(inspection)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun syncPdfToFirebase(inspection: Inspection) {
+        if (inspection.actions.isEmpty() || inspection.deleted) return
+
+        Thread {
+            try {
+                val pdfGenerator = PdfReportGenerator(appContext)
+                val filePath = pdfGenerator.generateReport(listOf(inspection))
+                val file = File(filePath)
+
+                if (file.exists()) {
+                    firebaseSyncService.uploadInspectionPdf(
+                        inspection = inspection,
+                        pdfFile = file
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }.start()
+    }
+
+    private fun syncInspectionAndPdf(inspection: Inspection) {
+        syncToFirebase(inspection)
+        syncPdfToFirebase(inspection)
+    }
+
+    fun getAllInspections(): Flow<List<Inspection>> = inspections
+
+    fun getInspectionsByStatus(status: InspectionStatus): Flow<List<Inspection>> =
+        inspections.map { list ->
+            list.filter { inspection ->
+                !inspection.deleted &&
+                inspection.deletedAt == null &&
+                inspection.status == status
+            }
         }
 
-        _formState.value = state.copy(isLoading = true)
+    fun getInspectionById(id: Long): Inspection? {
+        return _inspections.value.find { it.id == id && !it.deleted && it.deletedAt == null }
+    }
 
-        val actionItem = InspectionActionItem(
-            id = currentActionId,
-            unsafeCondition = state.unsafeCondition,
-            description = state.description,
-            immediateAction = state.immediateAction,
-            hasWorkOrder = state.hasWorkOrder,
-            workOrderNumber = state.workOrderNumber.takeIf { it.isNotBlank() },
-            workOrderOpenDate = state.workOrderOpenDate,
-            category = state.category,
-            isImmediateAction = state.isImmediateAction,
-            beforePhotoPath = state.beforePhotoPath,
-            afterPhotoPath = state.afterPhotoPath,
-            status = state.status
+    fun insertInspection(inspection: Inspection): Long {
+        val savedListData = prefs.getString(inspectionsKey, "[]") ?: "[]"
+        val fullList = try {
+            json.decodeFromString<List<Inspection>>(savedListData).toMutableList()
+        } catch (e: Exception) {
+            _inspections.value.toMutableList()
+        }
+
+        val newId = if (inspection.id == 0L) System.currentTimeMillis() else inspection.id
+
+        val newInspection = inspection.copy(
+            id = newId,
+            deleted = false,
+            deletedAt = null,
+            updatedAt = System.currentTimeMillis()
         )
 
-        if (currentInspectionId == 0L) {
-            val newInspectionId = System.currentTimeMillis()
-            val newActionId = System.currentTimeMillis() + 1L
+        val existingIndex = fullList.indexOfFirst { it.id == newId }
 
-            val inspection = Inspection(
-                id = newInspectionId,
-                title = state.unsafeCondition,
-                location = state.location,
-                inspectorName = state.inspectorName,
-                status = InspectionStatus.IN_PROGRESS,
-                actions = listOf(actionItem.copy(id = newActionId))
+        if (existingIndex >= 0) {
+            fullList[existingIndex] = newInspection
+        } else {
+            fullList.add(0, newInspection)
+        }
+
+        saveInspections(fullList)
+        _inspections.value = fullList.filter { !it.deleted && it.deletedAt == null }
+
+        syncInspectionAndPdf(newInspection)
+
+        return newId
+    }
+
+    fun addAction(
+        inspectionId: Long,
+        action: InspectionActionItem
+    ) {
+        val currentList = _inspections.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == inspectionId }
+
+        if (index >= 0) {
+            val inspection = currentList[index]
+
+            val newAction = action.copy(
+                id = if (action.id == 0L) System.currentTimeMillis() else action.id,
+                updatedAt = System.currentTimeMillis()
             )
 
-            repository.insertInspection(inspection)
+            val updatedInspection = inspection.copy(
+                actions = inspection.actions + newAction,
+                updatedAt = System.currentTimeMillis()
+            )
 
-        } else {
-            val existing = repository.getInspectionById(currentInspectionId)
+            currentList[index] = updatedInspection
 
-            if (existing != null) {
-                if (currentActionId == 0L) {
-                    val newAction = actionItem.copy(
-                        id = System.currentTimeMillis()
-                    )
+            _inspections.value = currentList.filter { !it.deleted && it.deletedAt == null }
+            saveInspections(currentList)
+            syncInspectionAndPdf(updatedInspection)
+        }
+    }
 
-                    repository.addAction(currentInspectionId, newAction)
+    fun updateAction(
+        inspectionId: Long,
+        action: InspectionActionItem
+    ) {
+        val currentList = _inspections.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == inspectionId }
 
+        if (index >= 0) {
+            val inspection = currentList[index]
+
+            val updatedActions = inspection.actions.map {
+                if (it.id == action.id) {
+                    action.copy(updatedAt = System.currentTimeMillis())
                 } else {
-                    repository.updateAction(currentInspectionId, actionItem)
-                }
-
-                val refreshedInspection = repository.getInspectionById(currentInspectionId)
-
-                if (refreshedInspection != null) {
-                    val updatedStatus =
-                        if (refreshedInspection.actions.isNotEmpty() &&
-                            refreshedInspection.actions.all { it.status == InspectionStatus.COMPLETED }
-                        ) {
-                            InspectionStatus.COMPLETED
-                        } else {
-                            InspectionStatus.IN_PROGRESS
-                        }
-
-                    repository.updateInspection(
-                        refreshedInspection.copy(
-                            title = refreshedInspection.title.ifBlank {
-                                state.unsafeCondition
-                            },
-                            location = state.location,
-                            inspectorName = state.inspectorName,
-                            status = updatedStatus
-                        )
-                    )
+                    it
                 }
             }
+
+            val updatedInspection = inspection.copy(
+                actions = updatedActions,
+                updatedAt = System.currentTimeMillis()
+            )
+
+            currentList[index] = updatedInspection
+
+            _inspections.value = currentList.filter { !it.deleted && it.deletedAt == null }
+            saveInspections(currentList)
+            syncInspectionAndPdf(updatedInspection)
+        }
+    }
+
+    fun deleteAction(
+        inspectionId: Long,
+        actionId: Long
+    ) {
+        val currentList = _inspections.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == inspectionId }
+
+        if (index >= 0) {
+            val inspection = currentList[index]
+
+            val updatedInspection = inspection.copy(
+                actions = inspection.actions.filterNot { it.id == actionId },
+                updatedAt = System.currentTimeMillis()
+            )
+
+            currentList[index] = updatedInspection
+
+            _inspections.value = currentList.filter { !it.deleted && it.deletedAt == null }
+            saveInspections(currentList)
+            syncInspectionAndPdf(updatedInspection)
+        }
+    }
+
+    fun updateInspection(inspection: Inspection) {
+        val currentList = _inspections.value.toMutableList()
+        val index = currentList.indexOfFirst { it.id == inspection.id }
+
+        if (index >= 0) {
+            val updatedInspection = inspection.copy(
+                updatedAt = System.currentTimeMillis()
+            )
+
+            currentList[index] = updatedInspection
+
+            _inspections.value = currentList.filter { !it.deleted && it.deletedAt == null }
+            saveInspections(currentList)
+            syncInspectionAndPdf(updatedInspection)
+        }
+    }
+
+    fun deleteInspectionById(id: Long) {
+        val savedListData = prefs.getString(inspectionsKey, "[]") ?: "[]"
+        val fullList = try {
+            json.decodeFromString<List<Inspection>>(savedListData).toMutableList()
+        } catch (e: Exception) {
+            _inspections.value.toMutableList()
         }
 
-        _formState.value = state.copy(
-            isLoading = false,
-            isSaved = true
-        )
+        val inspectionIndex = fullList.indexOfFirst { it.id == id }
+
+        if (inspectionIndex >= 0) {
+            val updatedInspection = fullList[inspectionIndex].copy(
+                deleted = true,
+                deletedAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+            )
+
+            fullList[inspectionIndex] = updatedInspection
+
+            saveInspections(fullList)
+            _inspections.value = fullList.filter { !it.deleted && it.deletedAt == null }
+
+            syncToFirebase(updatedInspection)
+        }
     }
 
-    private fun loadInspection(id: Long) {
-        if (id == 0L) return
+    fun getInspectionCount(): Flow<Int> =
+        inspections.map { list ->
+            list.count { !it.deleted && it.deletedAt == null }
+        }
 
-        val inspection = repository.getInspectionById(id) ?: return
-        currentInspectionId = inspection.id
-
-        val firstAction = inspection.actions.firstOrNull()
-        currentActionId = firstAction?.id ?: 0L
-
-        _formState.value = InspectionFormState(
-            unsafeCondition = firstAction?.unsafeCondition ?: inspection.title,
-            description = firstAction?.description ?: "",
-            immediateAction = firstAction?.immediateAction ?: "",
-            hasWorkOrder = firstAction?.hasWorkOrder ?: false,
-            workOrderNumber = firstAction?.workOrderNumber ?: "",
-            workOrderOpenDate = firstAction?.workOrderOpenDate,
-            category = firstAction?.category ?: "Segurança",
-            isImmediateAction = firstAction?.isImmediateAction ?: false,
-            location = inspection.location,
-            inspectorName = inspection.inspectorName,
-            beforePhotoPath = firstAction?.beforePhotoPath,
-            afterPhotoPath = firstAction?.afterPhotoPath,
-            status = firstAction?.status ?: inspection.status
-        )
-    }
-
-    fun resetForm() {
-        currentInspectionId = 0L
-        currentActionId = 0L
-
-        val user = userRepo.getCurrentUser()
-        _formState.value = InspectionFormState(
-            inspectorName = user?.fullName ?: ""
-        )
-    }
-
-    private fun analyzeWithAi() {
-        _formState.value = _formState.value.copy(
-            isAnalyzing = false,
-            errorMessage = "Função de IA removida nesta versão"
-        )
-    }
-
-    private fun applyAiAnalysis(result: AiAnalysisResult) {
-        _formState.value = _formState.value.copy(
-            unsafeCondition = result.riskDescription.take(100),
-            description = result.riskDescription,
-            aiAnalysisResult = null
-        )
-    }
+    fun getInspectionCountByStatus(status: InspectionStatus): Flow<Int> =
+        inspections.map { list ->
+            list.count { !it.deleted && it.deletedAt == null && it.status == status }
+        }
 
     companion object {
-        fun Factory(application: Application): ViewModelProvider.Factory {
-            return object : ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    return InspectionViewModel(application) as T
-                }
+        @Volatile
+        private var INSTANCE: InspectionRepository? = null
+
+        fun getInstance(context: Context): InspectionRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: InspectionRepository(
+                    context.applicationContext
+                ).also { INSTANCE = it }
             }
         }
     }
