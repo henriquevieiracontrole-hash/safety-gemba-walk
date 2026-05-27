@@ -6,7 +6,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.rork.safetygembawalk.data.AiAnalysisResult
-import com.rork.safetygembawalk.data.FirebaseSyncService
 import com.rork.safetygembawalk.data.Inspection
 import com.rork.safetygembawalk.data.InspectionActionItem
 import com.rork.safetygembawalk.data.InspectionRepository
@@ -69,7 +68,6 @@ sealed interface InspectionAction {
 class InspectionViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = InspectionRepository.getInstance(application)
-    private val firebaseSyncService = FirebaseSyncService()
     private val userRepo = com.rork.safetygembawalk.data.UserRepository(application)
     private val context = application
 
@@ -245,8 +243,6 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             status = state.status
         )
 
-        var inspectionIdForPdf = currentInspectionId
-
         if (currentInspectionId == 0L) {
             val newInspectionId = System.currentTimeMillis()
             val newActionId = System.currentTimeMillis() + 1L
@@ -261,7 +257,6 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             )
 
             repository.insertInspection(inspection)
-            inspectionIdForPdf = newInspectionId
 
         } else {
             val existing = repository.getInspectionById(currentInspectionId)
@@ -271,7 +266,9 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
                     val newAction = actionItem.copy(
                         id = System.currentTimeMillis()
                     )
+
                     repository.addAction(currentInspectionId, newAction)
+
                 } else {
                     repository.updateAction(currentInspectionId, actionItem)
                 }
@@ -299,28 +296,7 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
                         )
                     )
                 }
-
-                inspectionIdForPdf = currentInspectionId
             }
-        }
-
-        try {
-            val inspectionToExport = repository.getInspectionById(inspectionIdForPdf)
-
-            if (inspectionToExport != null) {
-                val pdfGenerator = PdfReportGenerator(context)
-
-                val generatedPdfPath = pdfGenerator.generateReport(
-                    listOf(inspectionToExport)
-                )
-
-                firebaseSyncService.uploadInspectionPdf(
-                    inspection = inspectionToExport,
-                    pdfFile = File(generatedPdfPath)
-                )
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
 
         _formState.value = state.copy(
