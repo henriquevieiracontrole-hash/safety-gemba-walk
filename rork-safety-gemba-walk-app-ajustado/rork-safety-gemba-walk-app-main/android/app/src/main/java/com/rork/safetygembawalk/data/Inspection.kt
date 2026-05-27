@@ -2,6 +2,7 @@ package com.rork.safetygembawalk.data
 
 import kotlinx.serialization.Serializable
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -15,6 +16,15 @@ data class Inspection(
 
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+
+    val inspectionDate: Long = startOfTodayMillis(),
+
+    val createdByName: String = "",
+    val createdByEmail: String = "",
+
+    val lastUpdatedByName: String = "",
+    val lastUpdatedByEmail: String = "",
+    val lastUpdatedAt: Long = System.currentTimeMillis(),
 
     val status: InspectionStatus = InspectionStatus.PENDING,
 
@@ -46,7 +56,22 @@ data class InspectionActionItem(
     val status: InspectionStatus = InspectionStatus.PENDING,
 
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+
+    val createdByName: String = "",
+    val createdByEmail: String = "",
+
+    val lastUpdatedByName: String = "",
+    val lastUpdatedByEmail: String = "",
+    val lastUpdatedAt: Long = System.currentTimeMillis(),
+
+    val completedAt: Long? = null,
+
+    val isInherited: Boolean = false,
+    val inheritedFromInspectionId: Long? = null,
+    val inheritedFromDate: Long? = null,
+    val hasChangesToday: Boolean = false,
+    val carriedCount: Int = 0
 )
 
 @Serializable
@@ -55,6 +80,13 @@ enum class InspectionStatus {
     IN_PROGRESS,
     COMPLETED,
     CANCELLED
+}
+
+fun startOfTodayMillis(): Long {
+    return LocalDate.now()
+        .atStartOfDay(ZoneId.systemDefault())
+        .toInstant()
+        .toEpochMilli()
 }
 
 fun Inspection.formattedDate(): String {
