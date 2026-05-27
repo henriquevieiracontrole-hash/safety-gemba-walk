@@ -10,6 +10,7 @@ import com.rork.safetygembawalk.data.Inspection
 import com.rork.safetygembawalk.data.InspectionActionItem
 import com.rork.safetygembawalk.data.InspectionRepository
 import com.rork.safetygembawalk.data.InspectionStatus
+import com.rork.safetygembawalk.data.startOfTodayMillis
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -172,7 +173,7 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
 
         _formState.value = InspectionFormState(
             location = inspection?.location ?: "",
-            inspectorName = inspection?.inspectorName ?: user?.fullName ?: "",
+            inspectorName = user?.fullName ?: inspection?.inspectorName ?: "",
             category = "Segurança"
         )
     }
@@ -180,6 +181,7 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
     private fun loadAction(inspectionId: Long, actionId: Long) {
         val inspection = repository.getInspectionById(inspectionId) ?: return
         val action = inspection.actions.firstOrNull { it.id == actionId } ?: return
+        val user = userRepo.getCurrentUser()
 
         currentInspectionId = inspection.id
         currentActionId = action.id
@@ -194,7 +196,7 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             category = action.category,
             isImmediateAction = action.isImmediateAction,
             location = inspection.location,
-            inspectorName = inspection.inspectorName,
+            inspectorName = user?.fullName ?: inspection.inspectorName,
             beforePhotoPath = action.beforePhotoPath,
             afterPhotoPath = action.afterPhotoPath,
             status = action.status
@@ -220,6 +222,10 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun saveInspection() {
         val state = _formState.value
+        val now = System.currentTimeMillis()
+        val user = userRepo.getCurrentUser()
+        val userName = user?.fullName ?: state.inspectorName
+        val userEmail = user?.email ?: ""
 
         if (state.unsafeCondition.isBlank() || state.description.isBlank()) {
             _formState.value = state.copy(errorMessage = "Preencha os campos obrigatórios")
@@ -227,6 +233,19 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
         }
 
         _formState.value = state.copy(isLoading = true)
+
+        val existingInspection =
+            if (currentInspectionId != 0L) repository.getInspectionById(currentInspectionId) else null
+
+        val existingAction =
+            existingInspection?.actions?.firstOrNull { it.id == currentActionId }
+
+        val completedAt =
+            if (state.status == InspectionStatus.COMPLETED) {
+                existingAction?.completedAt ?: now
+            } else {
+                null
+            }
 
         val actionItem = InspectionActionItem(
             id = currentActionId,
@@ -240,18 +259,39 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             isImmediateAction = state.isImmediateAction,
             beforePhotoPath = state.beforePhotoPath,
             afterPhotoPath = state.afterPhotoPath,
-            status = state.status
+            status = state.status,
+            createdAt = existingAction?.createdAt ?: now,
+            updatedAt = now,
+            createdByName = existingAction?.createdByName?.ifBlank { userName } ?: userName,
+            createdByEmail = existingAction?.createdByEmail?.ifBlank { userEmail } ?: userEmail,
+            lastUpdatedByName = userName,
+            lastUpdatedByEmail = userEmail,
+            lastUpdatedAt = now,
+            completedAt = completedAt,
+            isInherited = existingAction?.isInherited ?: false,
+            inheritedFromInspectionId = existingAction?.inheritedFromInspectionId,
+            inheritedFromDate = existingAction?.inheritedFromDate,
+            hasChangesToday = existingAction?.isInherited == true,
+            carriedCount = existingAction?.carriedCount ?: 0
         )
 
         if (currentInspectionId == 0L) {
-            val newInspectionId = System.currentTimeMillis()
-            val newActionId = System.currentTimeMillis() + 1L
+            val newInspectionId = now
+            val newActionId = now + 1L
 
             val inspection = Inspection(
                 id = newInspectionId,
                 title = state.unsafeCondition,
                 location = state.location,
-                inspectorName = state.inspectorName,
+                inspectorName = userName,
+                createdAt = now,
+                updatedAt = now,
+                inspectionDate = startOfTodayMillis(),
+                createdByName = userName,
+                createdByEmail = userEmail,
+                lastUpdatedByName = userName,
+                lastUpdatedByEmail = userEmail,
+                lastUpdatedAt = now,
                 status = InspectionStatus.IN_PROGRESS,
                 actions = listOf(actionItem.copy(id = newActionId))
             )
@@ -259,12 +299,18 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             repository.insertInspection(inspection)
 
         } else {
-            val existing = repository.getInspectionById(currentInspectionId)
-
-            if (existing != null) {
+            if (existingInspection != null) {
                 if (currentActionId == 0L) {
                     val newAction = actionItem.copy(
-                        id = System.currentTimeMillis()
+                        id = now,
+                        createdAt = now,
+                        updatedAt = now,
+                        createdByName = userName,
+                        createdByEmail = userEmail,
+                        lastUpdatedByName = userName,
+                        lastUpdatedByEmail = userEmail,
+                        lastUpdatedAt = now,
+                        completedAt = if (state.status == InspectionStatus.COMPLETED) now else null
                     )
 
                     repository.addAction(currentInspectionId, newAction)
@@ -291,8 +337,12 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
                                 state.unsafeCondition
                             },
                             location = state.location,
-                            inspectorName = state.inspectorName,
-                            status = updatedStatus
+                            inspectorName = refreshedInspection.inspectorName.ifBlank { userName },
+                            status = updatedStatus,
+                            updatedAt = now,
+                            lastUpdatedByName = userName,
+                            lastUpdatedByEmail = userEmail,
+                            lastUpdatedAt = now
                         )
                     )
                 }
@@ -309,6 +359,8 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
         if (id == 0L) return
 
         val inspection = repository.getInspectionById(id) ?: return
+        val user = userRepo.getCurrentUser()
+
         currentInspectionId = inspection.id
 
         val firstAction = inspection.actions.firstOrNull()
@@ -324,7 +376,7 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             category = firstAction?.category ?: "Segurança",
             isImmediateAction = firstAction?.isImmediateAction ?: false,
             location = inspection.location,
-            inspectorName = inspection.inspectorName,
+            inspectorName = user?.fullName ?: inspection.inspectorName,
             beforePhotoPath = firstAction?.beforePhotoPath,
             afterPhotoPath = firstAction?.afterPhotoPath,
             status = firstAction?.status ?: inspection.status
