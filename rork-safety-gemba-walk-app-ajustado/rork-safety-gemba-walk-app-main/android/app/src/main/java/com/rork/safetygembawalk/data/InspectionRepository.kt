@@ -447,33 +447,4 @@ private fun loadInspection(id: Long) {
         status = firstAction?.status ?: finalInspection.status
     )
 }
-```
 
-# O QUE ISSO FAZ
-
-```text
-✔ Inspeção de hoje → abre normal
-
-✔ Inspeção antiga → cria cópia automática
-
-✔ Mantém histórico intacto
-
-✔ Copia apenas pendências
-
-✔ Marca ação herdada
-
-✔ Incrementa carriedCount
-
-✔ Sistema começa controlar backlog REAL
-```
-
-# TESTE
-
-```text
-1. Crie inspeção hoje
-2. Deixe ação pendente
-3. Amanhã abra mesma inspeção
-4. APK deve criar NOVA inspeção
-5. Original continua intacta
-6. Nova fica marcada como herdada
-```
