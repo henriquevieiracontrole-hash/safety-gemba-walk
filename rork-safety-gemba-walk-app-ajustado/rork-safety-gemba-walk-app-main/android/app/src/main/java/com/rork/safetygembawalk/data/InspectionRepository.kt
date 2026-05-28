@@ -1,6 +1,3 @@
-# InspectionRepository.kt COMPLETO
-
-```kotlin
 package com.rork.safetygembawalk.data
 
 import android.content.Context
@@ -118,7 +115,6 @@ class InspectionRepository(context: Context) {
         userName: String,
         userEmail: String
     ): Long {
-
         val original = getInspectionById(originalInspectionId)
             ?: return originalInspectionId
 
@@ -138,9 +134,8 @@ class InspectionRepository(context: Context) {
         val now = System.currentTimeMillis()
 
         val duplicatedActions = pendingActions.mapIndexed { index, action ->
-
             action.copy(
-                id = now + index + 1,
+                id = now + index + 1L,
 
                 createdAt = now,
                 updatedAt = now,
@@ -159,7 +154,6 @@ class InspectionRepository(context: Context) {
                 inheritedFromDate = original.inspectionDate,
 
                 hasChangesToday = false,
-
                 carriedCount = action.carriedCount + 1
             )
         }
@@ -270,7 +264,7 @@ class InspectionRepository(context: Context) {
                     action.copy(
                         updatedAt = now,
                         lastUpdatedAt = now,
-                        hasChangesToday = true
+                        hasChangesToday = if (action.isInherited) true else action.hasChangesToday
                     )
                 } else {
                     it
@@ -318,7 +312,10 @@ class InspectionRepository(context: Context) {
         if (index >= 0) {
             val now = System.currentTimeMillis()
 
-            val updatedInspection = inspection.copy(updatedAt = now, lastUpdatedAt = now)
+            val updatedInspection = inspection.copy(
+                updatedAt = now,
+                lastUpdatedAt = now
+            )
 
             currentList[index] = updatedInspection
             _inspections.value = currentList.filter { !it.deleted && it.deletedAt == null }
@@ -388,63 +385,3 @@ class InspectionRepository(context: Context) {
         }
     }
 }
-```
-
-# ALTERAÇÃO NO InspectionViewModel.kt
-
-## PROCURE ESTE TRECHO:
-
-```kotlin
-private fun loadInspection(id: Long) {
-```
-
-## E SUBSTITUA A FUNÇÃO INTEIRA POR ESTA:
-
-```kotlin
-private fun loadInspection(id: Long) {
-    if (id == 0L) return
-
-    val inspection = repository.getInspectionById(id) ?: return
-    val user = userRepo.getCurrentUser()
-
-    val userName = user?.fullName ?: inspection.inspectorName
-    val userEmail = user?.email ?: ""
-
-    val inspectionIdToUse =
-        if (!repository.isInspectionFromToday(inspection)) {
-
-            repository.duplicateInspectionForToday(
-                originalInspectionId = inspection.id,
-                userName = userName,
-                userEmail = userEmail
-            )
-
-        } else {
-            inspection.id
-        }
-
-    val finalInspection =
-        repository.getInspectionById(inspectionIdToUse) ?: return
-
-    currentInspectionId = finalInspection.id
-
-    val firstAction = finalInspection.actions.firstOrNull()
-    currentActionId = firstAction?.id ?: 0L
-
-    _formState.value = InspectionFormState(
-        unsafeCondition = firstAction?.unsafeCondition ?: finalInspection.title,
-        description = firstAction?.description ?: "",
-        immediateAction = firstAction?.immediateAction ?: "",
-        hasWorkOrder = firstAction?.hasWorkOrder ?: false,
-        workOrderNumber = firstAction?.workOrderNumber ?: "",
-        workOrderOpenDate = firstAction?.workOrderOpenDate,
-        category = firstAction?.category ?: "Segurança",
-        isImmediateAction = firstAction?.isImmediateAction ?: false,
-        location = finalInspection.location,
-        inspectorName = userName,
-        beforePhotoPath = firstAction?.beforePhotoPath,
-        afterPhotoPath = firstAction?.afterPhotoPath,
-        status = firstAction?.status ?: finalInspection.status
-    )
-}
-
