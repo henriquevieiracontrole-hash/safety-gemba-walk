@@ -361,13 +361,30 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
         val inspection = repository.getInspectionById(id) ?: return
         val user = userRepo.getCurrentUser()
 
-        currentInspectionId = inspection.id
+        val userName = user?.fullName ?: inspection.inspectorName
+        val userEmail = user?.email ?: ""
 
-        val firstAction = inspection.actions.firstOrNull()
+        val inspectionIdToUse =
+            if (!repository.isInspectionFromToday(inspection)) {
+                repository.duplicateInspectionForToday(
+                    originalInspectionId = inspection.id,
+                    userName = userName,
+                    userEmail = userEmail
+                )
+            } else {
+                inspection.id
+            }
+
+        val finalInspection =
+            repository.getInspectionById(inspectionIdToUse) ?: return
+
+        currentInspectionId = finalInspection.id
+
+        val firstAction = finalInspection.actions.firstOrNull()
         currentActionId = firstAction?.id ?: 0L
 
         _formState.value = InspectionFormState(
-            unsafeCondition = firstAction?.unsafeCondition ?: inspection.title,
+            unsafeCondition = firstAction?.unsafeCondition ?: finalInspection.title,
             description = firstAction?.description ?: "",
             immediateAction = firstAction?.immediateAction ?: "",
             hasWorkOrder = firstAction?.hasWorkOrder ?: false,
@@ -375,11 +392,11 @@ class InspectionViewModel(application: Application) : AndroidViewModel(applicati
             workOrderOpenDate = firstAction?.workOrderOpenDate,
             category = firstAction?.category ?: "Segurança",
             isImmediateAction = firstAction?.isImmediateAction ?: false,
-            location = inspection.location,
-            inspectorName = user?.fullName ?: inspection.inspectorName,
+            location = finalInspection.location,
+            inspectorName = userName,
             beforePhotoPath = firstAction?.beforePhotoPath,
             afterPhotoPath = firstAction?.afterPhotoPath,
-            status = firstAction?.status ?: inspection.status
+            status = firstAction?.status ?: finalInspection.status
         )
     }
 
