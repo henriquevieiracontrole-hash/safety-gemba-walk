@@ -1,3 +1,6 @@
+# InspectionRepository.kt COMPLETO
+
+```kotlin
 package com.rork.safetygembawalk.data
 
 import android.content.Context
@@ -106,6 +109,90 @@ class InspectionRepository(context: Context) {
         }
     }
 
+    fun isInspectionFromToday(inspection: Inspection): Boolean {
+        return inspection.inspectionDate == startOfTodayMillis()
+    }
+
+    fun duplicateInspectionForToday(
+        originalInspectionId: Long,
+        userName: String,
+        userEmail: String
+    ): Long {
+
+        val original = getInspectionById(originalInspectionId)
+            ?: return originalInspectionId
+
+        if (isInspectionFromToday(original)) {
+            return original.id
+        }
+
+        val pendingActions =
+            original.actions.filter {
+                it.status != InspectionStatus.COMPLETED
+            }
+
+        if (pendingActions.isEmpty()) {
+            return original.id
+        }
+
+        val now = System.currentTimeMillis()
+
+        val duplicatedActions = pendingActions.mapIndexed { index, action ->
+
+            action.copy(
+                id = now + index + 1,
+
+                createdAt = now,
+                updatedAt = now,
+
+                createdByName = userName,
+                createdByEmail = userEmail,
+
+                lastUpdatedByName = userName,
+                lastUpdatedByEmail = userEmail,
+                lastUpdatedAt = now,
+
+                completedAt = null,
+
+                isInherited = true,
+                inheritedFromInspectionId = original.id,
+                inheritedFromDate = original.inspectionDate,
+
+                hasChangesToday = false,
+
+                carriedCount = action.carriedCount + 1
+            )
+        }
+
+        val duplicatedInspection = Inspection(
+            id = now,
+
+            title = original.title,
+            location = original.location,
+            inspectorName = userName,
+
+            createdAt = now,
+            updatedAt = now,
+
+            inspectionDate = startOfTodayMillis(),
+
+            createdByName = userName,
+            createdByEmail = userEmail,
+
+            lastUpdatedByName = userName,
+            lastUpdatedByEmail = userEmail,
+            lastUpdatedAt = now,
+
+            status = InspectionStatus.IN_PROGRESS,
+
+            actions = duplicatedActions
+        )
+
+        insertInspection(duplicatedInspection)
+
+        return duplicatedInspection.id
+    }
+
     fun insertInspection(inspection: Inspection): Long {
         val savedListData = prefs.getString(inspectionsKey, "[]") ?: "[]"
 
@@ -180,7 +267,11 @@ class InspectionRepository(context: Context) {
 
             val updatedActions = inspection.actions.map {
                 if (it.id == action.id) {
-                    action.copy(updatedAt = now, lastUpdatedAt = now)
+                    action.copy(
+                        updatedAt = now,
+                        lastUpdatedAt = now,
+                        hasChangesToday = true
+                    )
                 } else {
                     it
                 }
@@ -297,3 +388,92 @@ class InspectionRepository(context: Context) {
         }
     }
 }
+```
+
+# ALTERAÇÃO NO InspectionViewModel.kt
+
+## PROCURE ESTE TRECHO:
+
+```kotlin
+private fun loadInspection(id: Long) {
+```
+
+## E SUBSTITUA A FUNÇÃO INTEIRA POR ESTA:
+
+```kotlin
+private fun loadInspection(id: Long) {
+    if (id == 0L) return
+
+    val inspection = repository.getInspectionById(id) ?: return
+    val user = userRepo.getCurrentUser()
+
+    val userName = user?.fullName ?: inspection.inspectorName
+    val userEmail = user?.email ?: ""
+
+    val inspectionIdToUse =
+        if (!repository.isInspectionFromToday(inspection)) {
+
+            repository.duplicateInspectionForToday(
+                originalInspectionId = inspection.id,
+                userName = userName,
+                userEmail = userEmail
+            )
+
+        } else {
+            inspection.id
+        }
+
+    val finalInspection =
+        repository.getInspectionById(inspectionIdToUse) ?: return
+
+    currentInspectionId = finalInspection.id
+
+    val firstAction = finalInspection.actions.firstOrNull()
+    currentActionId = firstAction?.id ?: 0L
+
+    _formState.value = InspectionFormState(
+        unsafeCondition = firstAction?.unsafeCondition ?: finalInspection.title,
+        description = firstAction?.description ?: "",
+        immediateAction = firstAction?.immediateAction ?: "",
+        hasWorkOrder = firstAction?.hasWorkOrder ?: false,
+        workOrderNumber = firstAction?.workOrderNumber ?: "",
+        workOrderOpenDate = firstAction?.workOrderOpenDate,
+        category = firstAction?.category ?: "Segurança",
+        isImmediateAction = firstAction?.isImmediateAction ?: false,
+        location = finalInspection.location,
+        inspectorName = userName,
+        beforePhotoPath = firstAction?.beforePhotoPath,
+        afterPhotoPath = firstAction?.afterPhotoPath,
+        status = firstAction?.status ?: finalInspection.status
+    )
+}
+```
+
+# O QUE ISSO FAZ
+
+```text
+✔ Inspeção de hoje → abre normal
+
+✔ Inspeção antiga → cria cópia automática
+
+✔ Mantém histórico intacto
+
+✔ Copia apenas pendências
+
+✔ Marca ação herdada
+
+✔ Incrementa carriedCount
+
+✔ Sistema começa controlar backlog REAL
+```
+
+# TESTE
+
+```text
+1. Crie inspeção hoje
+2. Deixe ação pendente
+3. Amanhã abra mesma inspeção
+4. APK deve criar NOVA inspeção
+5. Original continua intacta
+6. Nova fica marcada como herdada
+```
