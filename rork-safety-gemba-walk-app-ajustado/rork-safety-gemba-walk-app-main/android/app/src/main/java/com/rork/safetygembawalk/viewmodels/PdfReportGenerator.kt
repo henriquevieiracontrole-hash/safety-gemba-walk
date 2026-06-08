@@ -54,7 +54,7 @@ class PdfReportGenerator(private val context: Context) {
         PdfWriter(file.absolutePath).use { writer ->
             PdfDocument(writer).use { pdfDoc ->
                 Document(pdfDoc, PageSize.A4).use { document ->
-                    document.setMargins(20f, 20f, 16f, 20f)
+                    document.setMargins(18f, 18f, 10f, 18f)
 
                     var firstPage = true
 
@@ -99,7 +99,7 @@ class PdfReportGenerator(private val context: Context) {
         addInspectionHero(document, inspection, inspectionNumber, action, actionIndex, totalActions)
         addSingleAction(document, action, actionIndex, totalActions)
         addPhotoEvidence(document, action, actionIndex)
-        addFooter(document)
+        // Rodapé removido para impedir página em branco entre ações.
     }
 
     private fun addHeader(document: Document) {
@@ -510,7 +510,7 @@ class PdfReportGenerator(private val context: Context) {
         )
 
         if (!action.beforePhotoPath.isNullOrBlank()) {
-            addImage(before, action.beforePhotoPath, 230f)
+            addImage(before, action.beforePhotoPath, 205f)
         } else {
             addNoImage(before)
         }
@@ -528,7 +528,7 @@ class PdfReportGenerator(private val context: Context) {
         )
 
         if (!action.afterPhotoPath.isNullOrBlank()) {
-            addImage(after, action.afterPhotoPath, 230f)
+            addImage(after, action.afterPhotoPath, 205f)
         } else {
             addNoImage(after)
         }
