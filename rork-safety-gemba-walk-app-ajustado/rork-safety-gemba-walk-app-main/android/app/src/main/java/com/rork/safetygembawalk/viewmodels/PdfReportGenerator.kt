@@ -7,15 +7,10 @@ import android.graphics.Matrix
 import android.media.ExifInterface
 import com.itextpdf.io.image.ImageDataFactory
 import com.itextpdf.kernel.colors.DeviceRgb
-import com.itextpdf.kernel.events.Event
-import com.itextpdf.kernel.events.IEventHandler
-import com.itextpdf.kernel.events.PdfDocumentEvent
 import com.itextpdf.kernel.font.PdfFontFactory
 import com.itextpdf.kernel.geom.PageSize
 import com.itextpdf.kernel.pdf.PdfDocument
-import com.itextpdf.kernel.pdf.PdfPage
 import com.itextpdf.kernel.pdf.PdfWriter
-import com.itextpdf.kernel.pdf.canvas.PdfCanvas
 import com.itextpdf.layout.Document
 import com.itextpdf.layout.borders.Border
 import com.itextpdf.layout.borders.SolidBorder
@@ -44,13 +39,12 @@ class PdfReportGenerator(private val context: Context) {
     private val orange = DeviceRgb(242, 140, 40)
     private val green = DeviceRgb(22, 138, 74)
     private val red = DeviceRgb(220, 38, 38)
-    private val navy = DeviceRgb(9, 31, 65)
     private val dark = DeviceRgb(30, 41, 59)
     private val muted = DeviceRgb(100, 116, 139)
     private val white = DeviceRgb(255, 255, 255)
     private val line = DeviceRgb(220, 205, 228)
     private val cardBg = DeviceRgb(255, 255, 255)
-    private val softCard = DeviceRgb(251, 248, 253)
+    private val softCard = DeviceRgb(252, 249, 253)
 
     fun generateReport(inspections: List<Inspection>): String {
         val fileName =
@@ -60,10 +54,8 @@ class PdfReportGenerator(private val context: Context) {
 
         PdfWriter(file.absolutePath).use { writer ->
             PdfDocument(writer).use { pdfDoc ->
-                pdfDoc.addEventHandler(PdfDocumentEvent.START_PAGE, AhlstromBackgroundHandler())
-
                 Document(pdfDoc, PageSize.A4).use { document ->
-                    document.setMargins(22f, 22f, 22f, 22f)
+                    document.setMargins(20f, 20f, 20f, 20f)
 
                     inspections.forEachIndexed { index, inspection ->
                         if (index > 0) {
@@ -79,75 +71,36 @@ class PdfReportGenerator(private val context: Context) {
         return file.absolutePath
     }
 
-    private inner class AhlstromBackgroundHandler : IEventHandler {
-        override fun handleEvent(event: Event) {
-            val docEvent = event as PdfDocumentEvent
-            val page: PdfPage = docEvent.page
-            val pageSize = page.pageSize
-            val canvas = PdfCanvas(page.newContentStreamBefore(), page.resources, docEvent.document)
-
-            canvas.saveState()
-
-            canvas.setFillColor(purpleSoft)
-            canvas.rectangle(
-                0.0,
-                0.0,
-                pageSize.width.toDouble(),
-                pageSize.height.toDouble()
-            )
-            canvas.fill()
-
-            canvas.setFillColor(purple)
-            canvas.rectangle(
-                0.0,
-                0.0,
-                18.0,
-                pageSize.height.toDouble()
-            )
-            canvas.fill()
-
-            canvas.setFillColor(purpleDark)
-            canvas.rectangle(
-                pageSize.width.toDouble() - 42.0,
-                0.0,
-                42.0,
-                pageSize.height.toDouble()
-            )
-            canvas.fill()
-
-            canvas.setFillColor(DeviceRgb(255, 255, 255))
-            canvas.rectangle(
-                22.0,
-                22.0,
-                (pageSize.width - 86).toDouble(),
-                (pageSize.height - 44).toDouble()
-            )
-            canvas.fill()
-
-            canvas.setStrokeColor(DeviceRgb(235, 222, 240))
-            canvas.setLineWidth(1f)
-            canvas.rectangle(
-                22.0,
-                22.0,
-                (pageSize.width - 86).toDouble(),
-                (pageSize.height - 44).toDouble()
-            )
-            canvas.stroke()
-
-            canvas.restoreState()
-        }
-    }
-
     private fun addOneInspectionPage(
         document: Document,
         inspection: Inspection,
         number: Int
     ) {
+        addAhlstromFrame(document)
         addHeader(document)
         addInspectionHero(document, inspection, number)
         addCompactActions(document, inspection)
         addPhotoEvidence(document, inspection)
         addFooter(document)
+    }
+
+    private fun addAhlstromFrame(document: Document) {
+        val frame = Table(floatArrayOf(1f)).useAllAvailableWidth()
+        frame.setMarginBottom(8f)
+
+        frame.addCell(
+            Cell()
+                .setBorder(Border.NO_BORDER)
+                .setBackgroundColor(purpleSoft)
+                .setPadding(6f)
+                .add(
+                    Paragraph(" ")
+                        .setFontSize(1f)
+                        .setMargin(0f)
+                )
+        )
+
+        document.add(frame)
     }
 
     private fun addHeader(document: Document) {
@@ -431,7 +384,7 @@ class PdfReportGenerator(private val context: Context) {
 
             val content = Cell()
                 .setBorder(Border.NO_BORDER)
-                .setBackgroundColor(lightCellBg())
+                .setBackgroundColor(softCard)
                 .setPadding(7f)
 
             content.add(lineText("Risco identificado", action.unsafeCondition))
@@ -503,10 +456,6 @@ class PdfReportGenerator(private val context: Context) {
             .setMarginBottom(2f)
     }
 
-    private fun lightCellBg(): DeviceRgb {
-        return DeviceRgb(252, 249, 253)
-    }
-
     private fun addPhotoEvidence(
         document: Document,
         inspection: Inspection
@@ -544,7 +493,7 @@ class PdfReportGenerator(private val context: Context) {
         )
 
         if (!firstActionWithPhoto.beforePhotoPath.isNullOrBlank()) {
-            addImage(before, firstActionWithPhoto.beforePhotoPath, 145f)
+            addImage(before, firstActionWithPhoto.beforePhotoPath, 220f)
         } else {
             addNoImage(before)
         }
@@ -562,7 +511,7 @@ class PdfReportGenerator(private val context: Context) {
         )
 
         if (!firstActionWithPhoto.afterPhotoPath.isNullOrBlank()) {
-            addImage(after, firstActionWithPhoto.afterPhotoPath, 145f)
+            addImage(after, firstActionWithPhoto.afterPhotoPath, 220f)
         } else {
             addNoImage(after)
         }
